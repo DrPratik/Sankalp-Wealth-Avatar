@@ -168,6 +168,95 @@ export default function AvatarChat({ userId, conversationSummary, setConversatio
 
       {/* Messages */}
       <div className="chat-messages">
+        {dashboardInsights.length > 0 && (
+          <div style={{ padding: '0 0 8px', display: 'grid', gap: '8px' }}>
+            {dashboardInsights.map((insight) => (
+              <div key={insight.title} style={{ border: '1px solid rgba(45, 212, 191, 0.2)', borderRadius: '12px', background: 'rgba(255,255,255,0.05)', padding: '10px 12px' }}>
+                <div style={{ fontSize: '0.74rem', color: 'var(--color-text-secondary)' }}>{insight.title}</div>
+                <div style={{ fontSize: '0.84rem', fontWeight: 700, marginTop: '2px' }}>{insight.value}</div>
+                <div style={{ fontSize: '0.7rem', color: 'var(--color-text-secondary)', marginTop: '2px' }}>{insight.hint}</div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {goalAction && (
+          <div style={{ padding: '0 0 8px' }}>
+            <div style={{ border: '1px solid rgba(45, 212, 191, 0.25)', borderRadius: '12px', background: 'rgba(45, 212, 191, 0.12)', padding: '10px 12px' }}>
+              <div style={{ fontSize: '0.74rem', fontWeight: 700 }}>Goal created</div>
+              <div style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)', marginTop: '2px' }}>{goalAction.goalName} • ₹{goalAction.targetAmount.toLocaleString('en-IN')}</div>
+            </div>
+          </div>
+        )}
+
+        {wellnessScore && (
+          <div style={{ padding: '0 0 8px' }}>
+            <div style={{ border: '1px solid rgba(45, 212, 191, 0.25)', borderRadius: '14px', background: 'linear-gradient(135deg, rgba(45, 212, 191, 0.16), rgba(14, 165, 233, 0.12))', padding: '10px 12px' }}>
+              <div style={{ fontSize: '0.74rem', color: 'var(--color-text-secondary)' }}>Financial Wellness Score</div>
+              <div style={{ fontSize: '1.1rem', fontWeight: 800, marginTop: '2px' }}>{wellnessScore.score}/100</div>
+              <div style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)', marginTop: '2px' }}>{wellnessScore.label}</div>
+            </div>
+          </div>
+        )}
+
+        {nextBestActions.length > 0 && (
+          <div style={{ padding: '0 0 8px', display: 'grid', gap: '8px' }}>
+            {nextBestActions.map((action) => (
+              <div key={action.title} style={{ border: '1px solid rgba(45, 212, 191, 0.2)', borderRadius: '12px', background: 'rgba(255,255,255,0.05)', padding: '10px 12px' }}>
+                <div style={{ fontSize: '0.75rem', fontWeight: 700 }}>{action.title}</div>
+                <div style={{ fontSize: '0.7rem', color: 'var(--color-text-secondary)', marginTop: '2px' }}>{action.detail}</div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {riskAdjustedRecommendations.length > 0 && (
+          <div style={{ padding: '0 0 8px', display: 'grid', gap: '8px' }}>
+            {riskAdjustedRecommendations.map((rec) => (
+              <div key={rec.title} style={{ border: '1px solid rgba(14, 165, 233, 0.2)', borderRadius: '12px', background: 'rgba(14, 165, 233, 0.08)', padding: '10px 12px' }}>
+                <div style={{ fontSize: '0.75rem', fontWeight: 700 }}>{rec.title}</div>
+                <div style={{ fontSize: '0.7rem', color: 'var(--color-text-secondary)', marginTop: '2px' }}>{rec.detail}</div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {monthChangeAnalysis.length > 0 && (
+          <div style={{ padding: '0 0 8px', display: 'grid', gap: '8px' }}>
+            {monthChangeAnalysis.map((item) => (
+              <div key={item.title} style={{ border: '1px solid rgba(251, 191, 36, 0.2)', borderRadius: '12px', background: 'rgba(251, 191, 36, 0.08)', padding: '10px 12px' }}>
+                <div style={{ fontSize: '0.75rem', fontWeight: 700 }}>{item.title}</div>
+                <div style={{ fontSize: '0.7rem', color: 'var(--color-text-secondary)', marginTop: '2px' }}>{item.detail}</div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {advisorCards.length > 0 && (
+          <div style={{ padding: '0 0 8px', display: 'grid', gap: '8px' }}>
+            {advisorCards.map((card) => (
+              <button
+                key={card.title}
+                onClick={() => handleSend(card.prompt)}
+                disabled={isLoading || isStreaming}
+                style={{
+                  textAlign: 'left',
+                  border: '1px solid rgba(45, 212, 191, 0.28)',
+                  borderRadius: '12px',
+                  background: 'rgba(45, 212, 191, 0.08)',
+                  padding: '10px 12px',
+                  color: 'var(--color-text-primary)',
+                  cursor: 'pointer'
+                }}
+              >
+                <div style={{ fontSize: '0.78rem', fontWeight: 700 }}>{card.title}</div>
+                <div style={{ fontSize: '0.74rem', color: 'var(--color-text-secondary)', marginTop: '2px' }}>{card.value}</div>
+                <div style={{ fontSize: '0.7rem', color: 'var(--color-text-secondary)', marginTop: '4px' }}>{card.subtitle}</div>
+              </button>
+            ))}
+          </div>
+        )}
+
         {messages.map((msg, idx) => (
           <div key={idx}>
             <div className={`chat-bubble-wrapper ${msg.role}`}>
@@ -193,97 +282,8 @@ export default function AvatarChat({ userId, conversationSummary, setConversatio
           </div>
         ))}
 
-        {dashboardInsights.length > 0 && (
-          <div style={{ padding: '0 16px 8px', display: 'grid', gap: '8px' }}>
-            {dashboardInsights.map((insight) => (
-              <div key={insight.title} style={{ border: '1px solid rgba(45, 212, 191, 0.2)', borderRadius: '12px', background: 'rgba(255,255,255,0.05)', padding: '10px 12px' }}>
-                <div style={{ fontSize: '0.74rem', color: 'var(--color-text-secondary)' }}>{insight.title}</div>
-                <div style={{ fontSize: '0.84rem', fontWeight: 700, marginTop: '2px' }}>{insight.value}</div>
-                <div style={{ fontSize: '0.7rem', color: 'var(--color-text-secondary)', marginTop: '2px' }}>{insight.hint}</div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {goalAction && (
-          <div style={{ padding: '0 16px 8px' }}>
-            <div style={{ border: '1px solid rgba(45, 212, 191, 0.25)', borderRadius: '12px', background: 'rgba(45, 212, 191, 0.12)', padding: '10px 12px' }}>
-              <div style={{ fontSize: '0.74rem', fontWeight: 700 }}>Goal created</div>
-              <div style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)', marginTop: '2px' }}>{goalAction.goalName} • ₹{goalAction.targetAmount.toLocaleString('en-IN')}</div>
-            </div>
-          </div>
-        )}
-
-        {wellnessScore && (
-          <div style={{ padding: '0 16px 8px' }}>
-            <div style={{ border: '1px solid rgba(45, 212, 191, 0.25)', borderRadius: '14px', background: 'linear-gradient(135deg, rgba(45, 212, 191, 0.16), rgba(14, 165, 233, 0.12))', padding: '10px 12px' }}>
-              <div style={{ fontSize: '0.74rem', color: 'var(--color-text-secondary)' }}>Financial Wellness Score</div>
-              <div style={{ fontSize: '1.1rem', fontWeight: 800, marginTop: '2px' }}>{wellnessScore.score}/100</div>
-              <div style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)', marginTop: '2px' }}>{wellnessScore.label}</div>
-            </div>
-          </div>
-        )}
-
-        {nextBestActions.length > 0 && (
-          <div style={{ padding: '0 16px 8px', display: 'grid', gap: '8px' }}>
-            {nextBestActions.map((action) => (
-              <div key={action.title} style={{ border: '1px solid rgba(45, 212, 191, 0.2)', borderRadius: '12px', background: 'rgba(255,255,255,0.05)', padding: '10px 12px' }}>
-                <div style={{ fontSize: '0.75rem', fontWeight: 700 }}>{action.title}</div>
-                <div style={{ fontSize: '0.7rem', color: 'var(--color-text-secondary)', marginTop: '2px' }}>{action.detail}</div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {riskAdjustedRecommendations.length > 0 && (
-          <div style={{ padding: '0 16px 8px', display: 'grid', gap: '8px' }}>
-            {riskAdjustedRecommendations.map((rec) => (
-              <div key={rec.title} style={{ border: '1px solid rgba(14, 165, 233, 0.2)', borderRadius: '12px', background: 'rgba(14, 165, 233, 0.08)', padding: '10px 12px' }}>
-                <div style={{ fontSize: '0.75rem', fontWeight: 700 }}>{rec.title}</div>
-                <div style={{ fontSize: '0.7rem', color: 'var(--color-text-secondary)', marginTop: '2px' }}>{rec.detail}</div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {monthChangeAnalysis.length > 0 && (
-          <div style={{ padding: '0 16px 8px', display: 'grid', gap: '8px' }}>
-            {monthChangeAnalysis.map((item) => (
-              <div key={item.title} style={{ border: '1px solid rgba(251, 191, 36, 0.2)', borderRadius: '12px', background: 'rgba(251, 191, 36, 0.08)', padding: '10px 12px' }}>
-                <div style={{ fontSize: '0.75rem', fontWeight: 700 }}>{item.title}</div>
-                <div style={{ fontSize: '0.7rem', color: 'var(--color-text-secondary)', marginTop: '2px' }}>{item.detail}</div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {advisorCards.length > 0 && (
-          <div style={{ padding: '0 16px 8px', display: 'grid', gap: '8px' }}>
-            {advisorCards.map((card) => (
-              <button
-                key={card.title}
-                onClick={() => handleSend(card.prompt)}
-                disabled={isLoading || isStreaming}
-                style={{
-                  textAlign: 'left',
-                  border: '1px solid rgba(45, 212, 191, 0.28)',
-                  borderRadius: '12px',
-                  background: 'rgba(45, 212, 191, 0.08)',
-                  padding: '10px 12px',
-                  color: 'var(--color-text-primary)',
-                  cursor: 'pointer'
-                }}
-              >
-                <div style={{ fontSize: '0.78rem', fontWeight: 700 }}>{card.title}</div>
-                <div style={{ fontSize: '0.74rem', color: 'var(--color-text-secondary)', marginTop: '2px' }}>{card.value}</div>
-                <div style={{ fontSize: '0.7rem', color: 'var(--color-text-secondary)', marginTop: '4px' }}>{card.subtitle}</div>
-              </button>
-            ))}
-          </div>
-        )}
-
         {(onOpenGoals || onOpenPortfolio) && (
-          <div style={{ padding: '0 16px 8px', display: 'flex', gap: '8px' }}>
+          <div style={{ padding: '0 0 8px', display: 'flex', gap: '8px' }}>
             {onOpenPortfolio && (
               <button
                 onClick={onOpenPortfolio}
