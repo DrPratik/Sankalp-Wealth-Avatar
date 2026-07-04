@@ -1,0 +1,79 @@
+{
+  "chat": {
+    "1": {
+      "reply": "Hi Rahul! I notice you have a solid foundation with your FDs and debt fund. Your portfolio is safe and steady, which matches your Conservative profile perfectly. I see your daughter's education goal is progressing — let's keep building on that momentum!",
+      "tone": "encouraging",
+      "suggested_action": "Consider reviewing your FD maturity dates to reinvest at current rates",
+      "compliance_note": "This is general guidance, not specific investment advice. Consult your bank advisor for personalized recommendations."
+    },
+    "2": {
+      "reply": "Hey Ananya! Your equity portfolio is performing really well with some great picks. I see your Goa Trip fund is almost at goal — exciting times ahead! Just a heads up, your dining spending has jumped a bit this month, but nothing alarming.",
+      "tone": "celebratory",
+      "suggested_action": "Your Goa Trip goal is 75% funded — keep it going!",
+      "compliance_note": "Mutual fund investments are subject to market risks. Read all scheme-related documents carefully."
+    },
+    "3": {
+      "reply": "Hello Suresh! Your portfolio is beautifully diversified across equity, debt, and gold — exactly what a Moderate profile should look like. Your SIPs are running smoothly and your spending patterns are very stable. You're on a great track for retirement!",
+      "tone": "encouraging",
+      "suggested_action": "Your retirement corpus is 36% funded — steady contributions will compound well",
+      "compliance_note": "Mutual fund investments are subject to market risks. Read all scheme-related documents carefully."
+    },
+    "default": {
+      "reply": "I'm having a bit of trouble thinking right now — but based on your portfolio, everything looks steady. Try asking me again in a moment, and I'll give you a more detailed analysis!",
+      "tone": "neutral",
+      "suggested_action": null,
+      "compliance_note": null
+    }
+  },
+  "nudges": {
+    "idle_balance": {
+      "trigger_type": "idle_balance",
+      "headline": "Your savings could work harder",
+      "body": "You have funds sitting idle. Consider a liquid fund or FD for better returns.",
+      "cta_label": "Explore Options",
+      "compliance_note": "Mutual fund investments are subject to market risks."
+    },
+    "missed_sip": {
+      "trigger_type": "missed_sip",
+      "headline": "Your SIP was missed this month",
+      "body": "Don't worry — you can restart or adjust your SIP amount to stay on track.",
+      "cta_label": "Review SIP",
+      "compliance_note": null
+    },
+    "goal_milestone": {
+      "trigger_type": "goal_milestone",
+      "headline": "Great progress on your goal! 🎉",
+      "body": "You've crossed the halfway mark. Keep the momentum going!",
+      "cta_label": "View Goal",
+      "compliance_note": null
+    },
+    "goal_offtrack": {
+      "trigger_type": "goal_offtrack",
+      "headline": "Your goal needs a boost",
+      "body": "A small increase in monthly savings can help you stay on track.",
+      "cta_label": "Adjust Plan",
+      "compliance_note": null
+    },
+    "spending_spike": {
+      "trigger_type": "spending_spike",
+      "headline": "Spending alert this month",
+      "body": "One of your spending categories is higher than usual. Worth a quick look.",
+      "cta_label": "View Spending",
+      "compliance_note": null
+    },
+    "cross_sell": {
+      "trigger_type": "cross_sell",
+      "headline": "Protect your financial future",
+      "body": "Consider term or health insurance to secure your family's wellbeing.",
+      "cta_label": "Learn More",
+      "compliance_note": "Insurance is a subject matter of solicitation. IRDAI Registration details available on request."
+    },
+    "default": {
+      "trigger_type": "general",
+      "headline": "Quick financial tip",
+      "body": "Stay consistent with your investments for long-term wealth building.",
+      "cta_label": "Learn More",
+      "compliance_note": null
+    }
+  }
+}

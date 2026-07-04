@@ -1,0 +1,33 @@
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Dependencies
+node_modules/
+frontend/node_modules/
+backend/node_modules/
+
+# Build output
+frontend/dist/
+backend/.cache/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# OS / editor files
+.DS_Store
+.vscode/
+.idea/
+
+# Database artifacts
+backend/db/*.db
+backend/db/*.sqlite
+backend/db/*.sqlite3
+
+# Temporary files
+*.tmp
+*.temp
