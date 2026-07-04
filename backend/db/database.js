@@ -10,6 +10,7 @@ const path = require('path');
 const { seed } = require('./seed');
 
 const DB_PATH = path.join(__dirname, '..', 'db', 'sankalp.db');
+const SCHEMA_PATH = path.join(__dirname, 'schema.sql');
 
 let db = null;
 
@@ -27,8 +28,43 @@ async function initDb() {
 
   const fileBuffer = fs.readFileSync(DB_PATH);
   db = new SQL.Database(fileBuffer);
+  ensureSchema();
   console.log('[DB] SQLite loaded from:', DB_PATH);
   return getDbWrapper();
+}
+
+function ensureSchema() {
+  try {
+    const schema = fs.readFileSync(SCHEMA_PATH, 'utf-8');
+    db.exec(schema);
+
+    ensureColumn('users', 'savings_balance', 'REAL NOT NULL DEFAULT 0');
+    ensureColumn('users', 'monthly_income', 'REAL NOT NULL DEFAULT 0');
+    ensureColumn('goals', 'current_saved', 'REAL NOT NULL DEFAULT 0');
+    ensureColumn('goals', 'target_date', 'TEXT NOT NULL DEFAULT "")');
+
+    persistToFile();
+  } catch (err) {
+    console.error('[DB] Schema ensure failed:', err.message);
+  }
+}
+
+function ensureColumn(tableName, columnName, columnDefinition) {
+  try {
+    const stmt = db.prepare(`PRAGMA table_info(${tableName})`);
+    const rows = [];
+    while (stmt.step()) {
+      rows.push(stmt.getAsObject());
+    }
+    stmt.free();
+
+    if (!rows.some(row => row.name === columnName)) {
+      db.run(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${columnDefinition}`);
+      console.log(`[DB] Added missing column ${tableName}.${columnName}`);
+    }
+  } catch (err) {
+    console.error(`[DB] Failed to ensure column ${tableName}.${columnName}:`, err.message);
+  }
 }
 
 /**

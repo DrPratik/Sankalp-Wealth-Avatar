@@ -43,6 +43,8 @@ export default function App() {
           conversationSummary={conversationSummary}
           setConversationSummary={setConversationSummary}
           onBack={() => setCurrentScreen('dashboard')}
+          onOpenGoals={() => setCurrentScreen('goals')}
+          onOpenPortfolio={() => setCurrentScreen('dashboard')}
         />
       );
     }

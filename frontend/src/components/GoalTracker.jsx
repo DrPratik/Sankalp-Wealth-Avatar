@@ -5,6 +5,8 @@ import { apiUrl } from '../api';
 export default function GoalTracker({ userId }) {
   const [goals, setGoals] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [feedback, setFeedback] = useState(null);
+  const [deletingGoalId, setDeletingGoalId] = useState(null);
   
   // Form states
   const [isAdding, setIsAdding] = useState(false);
@@ -96,7 +98,11 @@ export default function GoalTracker({ userId }) {
   };
 
   const handleDeleteGoal = async (goalId) => {
-    if (!confirm('Are you sure you want to delete this goal?')) return;
+    const confirmed = window.confirm('Are you sure you want to delete this goal?');
+    if (!confirmed) return;
+
+    setDeletingGoalId(goalId);
+    setFeedback(null);
 
     try {
       const res = await fetch(apiUrl(`/goals/${goalId}`), {
@@ -104,10 +110,16 @@ export default function GoalTracker({ userId }) {
       });
 
       if (res.ok) {
-        fetchGoals();
+        setGoals(prev => prev.filter(goal => goal.id !== goalId));
+        setFeedback('Goal deleted successfully.');
+      } else {
+        setFeedback('Could not delete the goal right now.');
       }
     } catch (err) {
       console.error('Failed to delete goal:', err);
+      setFeedback('Could not delete the goal right now.');
+    } finally {
+      setDeletingGoalId(null);
     }
   };
 
@@ -158,6 +170,12 @@ export default function GoalTracker({ userId }) {
           </button>
         )}
       </div>
+
+      {feedback && (
+        <div style={{ marginBottom: '12px', padding: '8px 10px', borderRadius: '10px', background: 'rgba(45, 212, 191, 0.12)', color: 'var(--color-text-primary)', fontSize: '0.75rem' }}>
+          {feedback}
+        </div>
+      )}
 
       {/* Add Goal Form */}
       {isAdding && (
@@ -259,7 +277,12 @@ export default function GoalTracker({ userId }) {
                   <button onClick={() => handleStartEdit(goal)} style={{ background: 'none', border: 'none', color: 'var(--color-text-secondary)', cursor: 'pointer', padding: '2px' }} title="Edit Goal">
                     <Edit3 size={14} />
                   </button>
-                  <button onClick={() => handleDeleteGoal(goal.id)} style={{ background: 'none', border: 'none', color: '#EF4444', cursor: 'pointer', padding: '2px' }} title="Delete Goal">
+                  <button
+                    onClick={() => handleDeleteGoal(goal.id)}
+                    disabled={deletingGoalId === goal.id}
+                    style={{ background: 'none', border: 'none', color: '#EF4444', cursor: deletingGoalId === goal.id ? 'wait' : 'pointer', padding: '2px', opacity: deletingGoalId === goal.id ? 0.6 : 1 }}
+                    title="Delete Goal"
+                  >
                     <Trash2 size={14} />
                   </button>
                 </div>

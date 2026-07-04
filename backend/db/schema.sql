@@ -7,7 +7,8 @@ CREATE TABLE IF NOT EXISTS users (
   age INTEGER NOT NULL,
   monthly_income REAL NOT NULL,
   risk_profile TEXT NOT NULL CHECK(risk_profile IN ('Conservative', 'Moderate', 'Aggressive')),
-  city TEXT NOT NULL
+  city TEXT NOT NULL,
+  savings_balance REAL NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS portfolio_holdings (

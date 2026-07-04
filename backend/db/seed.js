@@ -42,8 +42,8 @@ async function seed() {
   // ═══════════════════════════════════════════════════════
   // PERSONA 1 — Rahul Deshmukh (Conservative, salaried)
   // ═══════════════════════════════════════════════════════
-  db.run(`INSERT INTO users (name, age, monthly_income, risk_profile, city) VALUES (?, ?, ?, ?, ?)`,
-    ['Rahul Deshmukh', 34, 65000, 'Conservative', 'Pune']);
+  db.run(`INSERT INTO users (name, age, monthly_income, risk_profile, city, savings_balance) VALUES (?, ?, ?, ?, ?, ?)`,
+    ['Rahul Deshmukh', 34, 65000, 'Conservative', 'Pune', 125000]);
   const rahulId = 1;
 
   // Portfolio: ₹3,20,000 in FDs + 1 debt mutual fund, no equity
@@ -94,8 +94,8 @@ async function seed() {
   // ═══════════════════════════════════════════════════════
   // PERSONA 2 — Ananya Kulkarni (Aggressive, young professional)
   // ═══════════════════════════════════════════════════════
-  db.run(`INSERT INTO users (name, age, monthly_income, risk_profile, city) VALUES (?, ?, ?, ?, ?)`,
-    ['Ananya Kulkarni', 27, 95000, 'Aggressive', 'Mumbai']);
+  db.run(`INSERT INTO users (name, age, monthly_income, risk_profile, city, savings_balance) VALUES (?, ?, ?, ?, ?, ?)`,
+    ['Ananya Kulkarni', 27, 95000, 'Aggressive', 'Mumbai', 85000]);
   const ananyaId = 2;
 
   // Portfolio: ₹4,10,000 across 3 equity MFs + direct stocks
@@ -145,8 +145,8 @@ async function seed() {
   // ═══════════════════════════════════════════════════════
   // PERSONA 3 — Suresh Iyer (Moderate, pre-retirement)
   // ═══════════════════════════════════════════════════════
-  db.run(`INSERT INTO users (name, age, monthly_income, risk_profile, city) VALUES (?, ?, ?, ?, ?)`,
-    ['Suresh Iyer', 52, 140000, 'Moderate', 'Pune']);
+  db.run(`INSERT INTO users (name, age, monthly_income, risk_profile, city, savings_balance) VALUES (?, ?, ?, ?, ?, ?)`,
+    ['Suresh Iyer', 52, 140000, 'Moderate', 'Pune', 280000]);
   const sureshId = 3;
 
   // Portfolio: ₹18,00,000 mixed equity/debt/gold

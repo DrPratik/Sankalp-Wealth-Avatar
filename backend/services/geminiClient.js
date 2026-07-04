@@ -33,7 +33,7 @@ function getModel() {
 }
 
 // ── System Instruction ──
-const SYSTEM_INSTRUCTION = `You are Sankalp, a friendly and trustworthy AI wealth advisory avatar for an Indian bank's mobile app. You help customers understand their spending and investments in simple, warm, conversational language. You are NOT a licensed financial advisor and must never guarantee returns or give definitive "buy/sell" instructions — only educational guidance and clearly-labeled suggestions. Keep responses under 80 words unless the user asks for detail. Respond ONLY in valid JSON matching this schema, with no markdown formatting, no code fences, no extra text:
+const SYSTEM_INSTRUCTION = `You are Sankalp, a friendly and trustworthy AI wealth advisory avatar for an Indian bank's mobile app. You help customers understand their spending, savings balance, and investments in simple, warm, conversational language. You are NOT a licensed financial advisor and must never guarantee returns or give definitive "buy/sell" instructions — only educational guidance and clearly-labeled suggestions. Respond in the user's preferred language. If the user prefers Hindi, reply in Hindi; if Marathi, reply in Marathi; otherwise reply in English. Keep responses under 80 words unless the user asks for detail. Respond ONLY in valid JSON matching this schema, with no markdown formatting, no code fences, no extra text:
 
 {
   "reply": "string - the conversational response to show the user",
@@ -45,7 +45,7 @@ const SYSTEM_INSTRUCTION = `You are Sankalp, a friendly and trustworthy AI wealt
 /**
  * Build the user-turn prompt for a chat interaction.
  */
-function buildChatPrompt({ user, portfolioSummary, spendingSummary, goals, complianceText, conversationSummary, userMessage }) {
+function buildChatPrompt({ user, portfolioSummary, spendingSummary, goals, complianceText, conversationSummary, userMessage, preferredLanguage = 'en', dashboardInsights = [], wellnessScore = null, nextBestActions = [], riskAdjustedRecommendations = [], monthChangeAnalysis = [] }) {
   const goalLines = goals.map(g =>
     `${g.goalName} - ₹${g.currentSaved.toLocaleString('en-IN')}/₹${g.targetAmount.toLocaleString('en-IN')} (${g.progressPct}%), target date ${g.targetDate}`
   ).join('\n');
@@ -55,8 +55,9 @@ function buildChatPrompt({ user, portfolioSummary, spendingSummary, goals, compl
   ).join('. ');
 
   const sipLine = spendingSummary.sipStatus?.message || '';
+  const languageLabel = preferredLanguage === 'hi' ? 'Hindi' : preferredLanguage === 'mr' ? 'Marathi' : 'English';
 
-  return `User profile: ${user.name}, age ${user.age}, risk profile: ${user.risk_profile}, monthly income: ₹${user.monthly_income.toLocaleString('en-IN')}
+  return `User profile: ${user.name}, age ${user.age}, risk profile: ${user.risk_profile}, monthly income: ₹${user.monthly_income.toLocaleString('en-IN')}, savings account balance: ₹${(user.savings_balance || 0).toLocaleString('en-IN')}
 
 Portfolio summary: Total value ₹${portfolioSummary.totalValue.toLocaleString('en-IN')}, allocated ${portfolioSummary.allocationPct.Equity || 0}% equity / ${portfolioSummary.allocationPct.Debt || 0}% debt / ${portfolioSummary.allocationPct.Gold || 0}% gold / ${portfolioSummary.allocationPct.Hybrid || 0}% hybrid. Overall gain: ${portfolioSummary.gainLossPct}%. Risk alignment: ${portfolioSummary.riskAlignment}.
 
@@ -64,11 +65,20 @@ Recent spending pattern: ${spendingLines}. ${sipLine}
 
 Active goals: ${goalLines || 'None'}
 
+Dashboard insights: ${dashboardInsights.map(i => `${i.title}: ${i.value} (${i.hint})`).join('; ') || 'None'}
+
+Financial wellness score: ${wellnessScore ? `${wellnessScore.score}/100 (${wellnessScore.label})` : 'Not available'}
+Next best actions: ${nextBestActions.map(a => `${a.title}: ${a.detail}`).join('; ') || 'None'}
+Risk-adjusted recommendations: ${riskAdjustedRecommendations.map(r => `${r.title}: ${r.detail}`).join('; ') || 'None'}
+What changed from last month: ${monthChangeAnalysis.map(c => `${c.title}: ${c.detail}`).join('; ') || 'None'}
+
 Conversation so far (summary): ${conversationSummary || 'This is the beginning of the conversation.'}
 
 Compliance-approved facts only (do not contradict): ${complianceText}
 
 User's current message: "${userMessage}"
+
+Preferred answer language: ${languageLabel}
 
 Respond as Sankalp following the system instruction JSON schema.`;
 }

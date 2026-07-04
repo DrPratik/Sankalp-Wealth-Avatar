@@ -26,6 +26,9 @@ router.put('/demo/:userId', async (req, res) => {
     if (updates.risk_profile !== undefined) {
       db.prepare('UPDATE users SET risk_profile = ? WHERE id = ?').run(updates.risk_profile, userId);
     }
+    if (updates.savings_balance !== undefined) {
+      db.prepare('UPDATE users SET savings_balance = ? WHERE id = ?').run(updates.savings_balance, userId);
+    }
 
     // Update savings balance by adjusting transactions
     if (updates.savings_balance !== undefined) {

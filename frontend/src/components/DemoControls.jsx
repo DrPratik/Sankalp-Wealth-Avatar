@@ -31,7 +31,7 @@ export default function DemoControls({ userId, onApplied }) {
         ...prev,
         monthly_income: userData.monthly_income,
         risk_profile: userData.risk_profile,
-        savings_balance: ''
+        savings_balance: userData.savings_balance ?? ''
       }));
     }).catch(console.error);
   }, [userId]);
@@ -41,9 +41,13 @@ export default function DemoControls({ userId, onApplied }) {
     setResult(null);
 
     const payload = {};
-    if (formData.monthly_income !== user?.monthly_income) payload.monthly_income = Number(formData.monthly_income);
+    if (formData.monthly_income !== '' && formData.monthly_income !== user?.monthly_income) {
+      payload.monthly_income = Number(formData.monthly_income);
+    }
     if (formData.risk_profile !== user?.risk_profile) payload.risk_profile = formData.risk_profile;
-    if (formData.savings_balance) payload.savings_balance = Number(formData.savings_balance);
+    if (formData.savings_balance !== '' && formData.savings_balance !== null) {
+      payload.savings_balance = Number(formData.savings_balance);
+    }
     if (formData.simulate_missed_sip) payload.simulate_missed_sip = true;
     if (formData.simulate_spending_spike) {
       payload.simulate_spending_spike = true;

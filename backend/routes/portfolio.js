@@ -42,7 +42,8 @@ router.get('/portfolio/:userId', (req, res) => {
         age: user.age,
         riskProfile: user.risk_profile,
         city: user.city,
-        monthlyIncome: user.monthly_income
+        monthlyIncome: user.monthly_income,
+        savingsBalance: user.savings_balance
       },
       portfolio: portfolioSummary,
       spending: spendingSummary
