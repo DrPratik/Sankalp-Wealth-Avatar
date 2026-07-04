@@ -51,26 +51,6 @@ export default function AvatarChat({ userId, conversationSummary, setConversatio
     scrollToBottom();
   }, [messages, streamingText, scrollToBottom]);
 
-  // Simulated streaming: reveal text character by character
-  const simulateStream = useCallback((fullText, onComplete) => {
-    setIsStreaming(true);
-    setStreamingText('');
-    let idx = 0;
-    const interval = setInterval(() => {
-      idx += Math.floor(Math.random() * 3) + 1; // 1-3 chars at a time
-      if (idx >= fullText.length) {
-        idx = fullText.length;
-        clearInterval(interval);
-        setIsStreaming(false);
-        setStreamingText('');
-        onComplete();
-      } else {
-        setStreamingText(fullText.substring(0, idx));
-      }
-    }, 20);
-    return () => clearInterval(interval);
-  }, []);
-
   const handleSend = useCallback(async (textOverride = null) => {
     const textToSend = (textOverride || input).trim();
     if (!textToSend || isLoading) return;
@@ -112,18 +92,17 @@ export default function AvatarChat({ userId, conversationSummary, setConversatio
       setMonthChangeAnalysis(data.monthChangeAnalysis || []);
       setGoalAction(data.goalAction || null);
       setIsLoading(false);
+      setIsStreaming(false);
+      setStreamingText('');
 
-      // Simulate streaming
-      simulateStream(replyText, () => {
-        setMessages(prev => [...prev, {
-          role: 'ai',
-          text: replyText,
-          tone: data.tone,
-          suggested_action: data.suggested_action,
-          compliance_note: data.compliance_note,
-          complianceChecked: data.complianceChecked
-        }]);
-      });
+      setMessages(prev => [...prev, {
+        role: 'ai',
+        text: replyText,
+        tone: data.tone,
+        suggested_action: data.suggested_action,
+        compliance_note: data.compliance_note,
+        complianceChecked: data.complianceChecked
+      }]);
 
       // Update rolling conversation summary every 4 turns
       if (turnCount.current % 4 === 0) {
@@ -147,7 +126,7 @@ export default function AvatarChat({ userId, conversationSummary, setConversatio
         complianceChecked: false
       }]);
     }
-  }, [input, isLoading, userId, conversationSummary, messages, setConversationSummary, simulateStream]);
+  }, [input, isLoading, userId, conversationSummary, messages, setConversationSummary]);
 
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
