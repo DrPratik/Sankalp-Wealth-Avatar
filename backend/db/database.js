@@ -7,6 +7,7 @@
 const initSqlJs = require('sql.js');
 const fs = require('fs');
 const path = require('path');
+const { seed } = require('./seed');
 
 const DB_PATH = path.join(__dirname, '..', 'db', 'sankalp.db');
 
@@ -20,7 +21,8 @@ async function initDb() {
   const SQL = await initSqlJs();
 
   if (!fs.existsSync(DB_PATH)) {
-    throw new Error(`Database file not found at ${DB_PATH}. Run "npm run seed" first.`);
+    console.log('[DB] Database file not found. Seeding demo database...');
+    await seed();
   }
 
   const fileBuffer = fs.readFileSync(DB_PATH);
