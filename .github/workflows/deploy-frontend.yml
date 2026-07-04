@@ -12,6 +12,7 @@ permissions:
   contents: read
   pages: write
   id-token: write
+  actions: write
 
 concurrency:
   group: frontend-pages
@@ -39,6 +40,24 @@ jobs:
           VITE_API_URL: ${{ vars.VITE_API_URL || 'https://your-backend-url.example.com' }}
           VITE_BASE_PATH: /${{ github.event.repository.name }}/
         run: npm run build
+
+      - name: Clean old Pages artifacts
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const artifacts = await github.rest.actions.listWorkflowRunArtifacts({
+              owner,
+              repo,
+              run_id: context.runId,
+            });
+            for (const artifact of artifacts.data.artifacts.filter(a => a.name === 'github-pages')) {
+              await github.rest.actions.deleteArtifact({
+                owner,
+                repo,
+                artifact_id: artifact.id,
+              });
+            }
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
