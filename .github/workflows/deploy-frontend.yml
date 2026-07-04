@@ -34,6 +34,11 @@ jobs:
         working-directory: frontend
         run: npm install
 
+      - name: Show API URL being used
+        run: echo "VITE_API_URL=${VITE_API_URL}"
+        env:
+          VITE_API_URL: ${{ vars.VITE_API_URL || 'https://your-backend-url.example.com' }}
+
       - name: Build frontend
         working-directory: frontend
         env:
