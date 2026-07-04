@@ -19,6 +19,11 @@ function detectLanguage(text) {
   return /[ऀ-ॿ]/.test(text) ? 'hi' : 'en';
 }
 
+function shouldShowContextCards(text) {
+  const normalized = (text || '').toLowerCase();
+  return /(portfolio|risk|allocation|sip|spending|goal|wellness|invest|expense|income|balance|insurance|recommend|save|afford|track)/.test(normalized);
+}
+
 export default function AvatarChat({ userId, conversationSummary, setConversationSummary, onBack, onOpenGoals, onOpenPortfolio }) {
   const [messages, setMessages] = useState([
     {
@@ -42,6 +47,7 @@ export default function AvatarChat({ userId, conversationSummary, setConversatio
   const [isStreaming, setIsStreaming] = useState(false);
   const messagesEndRef = useRef(null);
   const turnCount = useRef(0);
+  const contextCardsShownRef = useRef(false);
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -56,12 +62,6 @@ export default function AvatarChat({ userId, conversationSummary, setConversatio
     if (!textToSend || isLoading) return;
 
     setMessages(prev => [...prev, { role: 'user', text: textToSend }]);
-    setAdvisorCards([]);
-    setDashboardInsights([]);
-    setWellnessScore(null);
-    setNextBestActions([]);
-    setRiskAdjustedRecommendations([]);
-    setMonthChangeAnalysis([]);
     setGoalAction(null);
     setInput('');
     setIsLoading(true);
@@ -84,12 +84,25 @@ export default function AvatarChat({ userId, conversationSummary, setConversatio
 
       const data = await response.json();
       const replyText = data.reply || "I'm here to help!";
-      setAdvisorCards(data.advisorCards || []);
-      setDashboardInsights(data.dashboardInsights || []);
-      setWellnessScore(data.wellnessScore || null);
-      setNextBestActions(data.nextBestActions || []);
-      setRiskAdjustedRecommendations(data.riskAdjustedRecommendations || []);
-      setMonthChangeAnalysis(data.monthChangeAnalysis || []);
+      const showContextCards = shouldShowContextCards(textToSend);
+
+      if (showContextCards && !contextCardsShownRef.current) {
+        setAdvisorCards(data.advisorCards || []);
+        setDashboardInsights(data.dashboardInsights || []);
+        setWellnessScore(data.wellnessScore || null);
+        setNextBestActions(data.nextBestActions || []);
+        setRiskAdjustedRecommendations(data.riskAdjustedRecommendations || []);
+        setMonthChangeAnalysis(data.monthChangeAnalysis || []);
+        contextCardsShownRef.current = true;
+      } else if (!contextCardsShownRef.current) {
+        setAdvisorCards([]);
+        setDashboardInsights([]);
+        setWellnessScore(null);
+        setNextBestActions([]);
+        setRiskAdjustedRecommendations([]);
+        setMonthChangeAnalysis([]);
+      }
+
       setGoalAction(data.goalAction || null);
       setIsLoading(false);
       setIsStreaming(false);
@@ -113,11 +126,13 @@ export default function AvatarChat({ userId, conversationSummary, setConversatio
 
     } catch (err) {
       setIsLoading(false);
-      setDashboardInsights([]);
-      setWellnessScore(null);
-      setNextBestActions([]);
-      setRiskAdjustedRecommendations([]);
-      setMonthChangeAnalysis([]);
+      if (!contextCardsShownRef.current) {
+        setDashboardInsights([]);
+        setWellnessScore(null);
+        setNextBestActions([]);
+        setRiskAdjustedRecommendations([]);
+        setMonthChangeAnalysis([]);
+      }
       setGoalAction(null);
       setMessages(prev => [...prev, {
         role: 'ai',
