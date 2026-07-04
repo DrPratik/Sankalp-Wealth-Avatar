@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { ArrowLeft, Send, ShieldCheck } from 'lucide-react';
+import { apiUrl } from '../api';
 
 const QUICK_REPLIES = [
   "How's my portfolio doing?",
@@ -62,7 +63,7 @@ export default function AvatarChat({ userId, conversationSummary, setConversatio
     turnCount.current++;
 
     try {
-      const response = await fetch('/api/chat', {
+      const response = await fetch(apiUrl('/chat'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

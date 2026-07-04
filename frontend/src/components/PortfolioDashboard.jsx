@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { LogOut, TrendingUp, TrendingDown } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 import NudgeFeed from './NudgeFeed';
+import { apiUrl } from '../api';
 
 const ALLOC_COLORS = { Equity: '#3B82F6', Debt: '#10B981', Hybrid: '#8B5CF6', Gold: '#F59E0B' };
 
@@ -11,7 +12,7 @@ export default function PortfolioDashboard({ userId, nudgeRefreshKey, onOpenChat
 
   useEffect(() => {
     setLoading(true);
-    fetch(`/api/portfolio/${userId}`)
+    fetch(apiUrl(`/portfolio/${userId}`))
       .then(r => r.json())
       .then(d => { setData(d); setLoading(false); })
       .catch(() => setLoading(false));

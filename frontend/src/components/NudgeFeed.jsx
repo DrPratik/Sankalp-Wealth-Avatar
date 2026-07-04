@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Sparkles, PiggyBank, Target, TrendingDown, AlertTriangle, ShieldCheck, X, CreditCard } from 'lucide-react';
+import { apiUrl } from '../api';
 
 const TRIGGER_ICONS = {
   idle_balance: { icon: PiggyBank, bg: '#DBEAFE', color: '#2563EB' },
@@ -18,7 +19,7 @@ export default function NudgeFeed({ userId, refreshKey }) {
 
   const fetchNudges = useCallback(() => {
     setLoading(true);
-    fetch(`/api/nudges/${userId}`)
+    fetch(apiUrl(`/nudges/${userId}`))
       .then(r => r.json())
       .then(data => {
         setNudges(data.nudges || []);
@@ -43,7 +44,7 @@ export default function NudgeFeed({ userId, refreshKey }) {
     }, 300);
 
     // Fire and forget dismiss API call
-    fetch(`/api/nudges/${nudgeId}/dismiss`, { method: 'POST' }).catch(() => {});
+    fetch(apiUrl(`/nudges/${nudgeId}/dismiss`), { method: 'POST' }).catch(() => {});
   };
 
   if (loading) {

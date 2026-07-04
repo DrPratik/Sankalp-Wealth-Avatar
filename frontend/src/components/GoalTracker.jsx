@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Target, TrendingUp, AlertCircle, PartyPopper, Plus, Trash2, Edit3, Check, X, Coins } from 'lucide-react';
+import { apiUrl } from '../api';
 
 export default function GoalTracker({ userId }) {
   const [goals, setGoals] = useState([]);
@@ -25,7 +26,7 @@ export default function GoalTracker({ userId }) {
 
   const fetchGoals = useCallback(() => {
     setLoading(true);
-    fetch(`/api/goals/${userId}`)
+    fetch(apiUrl(`/goals/${userId}`))
       .then(r => r.json())
       .then(data => { setGoals(data); setLoading(false); })
       .catch(() => setLoading(false));
@@ -40,7 +41,7 @@ export default function GoalTracker({ userId }) {
     if (!newGoal.goalName || !newGoal.targetAmount || !newGoal.targetDate) return;
 
     try {
-      const res = await fetch('/api/goals', {
+      const res = await fetch(apiUrl('/goals'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -74,7 +75,7 @@ export default function GoalTracker({ userId }) {
 
   const handleSaveEdit = async (goalId) => {
     try {
-      const res = await fetch(`/api/goals/${goalId}`, {
+      const res = await fetch(apiUrl(`/goals/${goalId}`), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -98,7 +99,7 @@ export default function GoalTracker({ userId }) {
     if (!confirm('Are you sure you want to delete this goal?')) return;
 
     try {
-      const res = await fetch(`/api/goals/${goalId}`, {
+      const res = await fetch(apiUrl(`/goals/${goalId}`), {
         method: 'DELETE'
       });
 
@@ -112,7 +113,7 @@ export default function GoalTracker({ userId }) {
 
   const handleQuickAdd = async (goal, amount) => {
     try {
-      const res = await fetch(`/api/goals/${goal.id}`, {
+      const res = await fetch(apiUrl(`/goals/${goal.id}`), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

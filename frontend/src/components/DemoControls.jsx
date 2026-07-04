@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Wrench } from 'lucide-react';
+import { apiUrl } from '../api';
 
 export default function DemoControls({ userId, onApplied }) {
   const [user, setUser] = useState(null);
@@ -19,9 +20,9 @@ export default function DemoControls({ userId, onApplied }) {
   useEffect(() => {
     // Fetch user + portfolio data
     Promise.all([
-      fetch(`/api/users/${userId}`).then(r => r.json()),
-      fetch(`/api/portfolio/${userId}`).then(r => r.json()),
-      fetch(`/api/goals/${userId}`).then(r => r.json()),
+      fetch(apiUrl(`/users/${userId}`)).then(r => r.json()),
+      fetch(apiUrl(`/portfolio/${userId}`)).then(r => r.json()),
+      fetch(apiUrl(`/goals/${userId}`)).then(r => r.json()),
     ]).then(([userData, portfolioData, goalsData]) => {
       setUser(userData);
       setHoldings(portfolioData.portfolio?.holdings || []);
@@ -65,7 +66,7 @@ export default function DemoControls({ userId, onApplied }) {
     if (goalUpdates.length) payload.goals = goalUpdates;
 
     try {
-      const response = await fetch(`/api/demo/${userId}`, {
+      const response = await fetch(apiUrl(`/demo/${userId}`), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)

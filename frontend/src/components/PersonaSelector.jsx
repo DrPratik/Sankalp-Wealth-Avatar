@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { ChevronRight } from 'lucide-react';
+import { apiUrl } from '../api';
 
 const AVATAR_COLORS = {
   1: { bg: 'linear-gradient(135deg, #10B981, #059669)', letter: 'R' },
@@ -18,7 +19,7 @@ export default function PersonaSelector({ onSelect }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch('/api/users')
+    fetch(apiUrl('/users'))
       .then(r => r.json())
       .then(data => { setUsers(data); setLoading(false); })
       .catch(() => setLoading(false));
