@@ -11,10 +11,10 @@ const geminiClient = require('../services/geminiClient');
 
 function parseGoalAction(message) {
   const text = (message || '').toLowerCase();
-  const goalKeywords = ['goal', 'education', 'travel', 'car', 'house', 'wedding', 'retirement', 'savings', 'buy'];
+  const goalKeywords = ['goal', 'education', 'travel', 'car', 'house', 'wedding', 'retirement', 'savings', 'save', 'buy'];
   const wantsNewGoal = goalKeywords.some(keyword => text.includes(keyword));
   const hasCreateIntent = /create|add|set|make|plan/i.test(text);
-  const hasGoalIntent = /goal|education|travel|car|house|wedding|retirement|savings/i.test(text);
+  const hasGoalIntent = /goal|education|travel|car|house|wedding|retirement|savings|save/i.test(text);
 
   if (!wantsNewGoal || !hasCreateIntent || !hasGoalIntent) {
     return null;
@@ -42,13 +42,24 @@ function parseGoalAction(message) {
   } else if (text.includes('wedding')) {
     goalName = 'Wedding fund';
     targetAmount = 800000;
+  } else if (text.includes('save') || text.includes('savings')) {
+    goalName = 'Monthly savings goal';
   }
 
-  if (text.includes('₹') || text.includes('rs')) {
-    const amountMatch = text.match(/(\d{2,7})/);
-    if (amountMatch) {
-      targetAmount = Number(amountMatch[1]) * 1000;
+  const amountMatch = text.match(/(?:₹|rs|inr|rupees?)\s*([0-9,]+)/i)
+    || text.match(/(?:save|saving|target|amount|goal)\s*(?:of)?\s*([0-9,]+)/i)
+    || text.match(/\b([0-9]{2,7})\b/);
+
+  if (amountMatch) {
+    const parsedAmount = Number(String(amountMatch[1] || amountMatch[0]).replace(/,/g, ''));
+    if (!Number.isNaN(parsedAmount) && parsedAmount > 0) {
+      targetAmount = parsedAmount;
     }
+  }
+
+  if (/this month|monthly|month/i.test(text)) {
+    const monthEnd = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0);
+    targetDate = monthEnd.toISOString().split('T')[0];
   }
 
   return { goalName, targetAmount, targetDate };
@@ -205,3 +216,4 @@ router.post('/chat', async (req, res) => {
 });
 
 module.exports = router;
+module.exports.parseGoalAction = parseGoalAction;
