@@ -31,7 +31,11 @@ jobs:
         run: timeout 20s npm start || test $? -eq 124
 
       - name: Deploy to Render
-        if: ${{ secrets.RENDER_DEPLOY_HOOK_URL != '' }}
         env:
           RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
-        run: curl "$RENDER_DEPLOY_HOOK_URL"
+        run: |
+          if [ -n "$RENDER_DEPLOY_HOOK_URL" ]; then
+            curl -X POST "$RENDER_DEPLOY_HOOK_URL"
+          else
+            echo "RENDER_DEPLOY_HOOK_URL is not set. Skipping Render deploy."
+          fi
