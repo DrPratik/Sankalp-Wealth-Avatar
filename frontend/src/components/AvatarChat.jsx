@@ -24,7 +24,7 @@ function shouldShowContextCards(text) {
   return /(portfolio|risk|allocation|sip|spending|goal|wellness|invest|expense|income|balance|insurance|recommend|save|afford|track)/.test(normalized);
 }
 
-export default function AvatarChat({ userId, conversationSummary, setConversationSummary, onBack, onOpenGoals, onOpenPortfolio }) {
+export default function AvatarChat({ userId, conversationSummary, setConversationSummary, onBack, onOpenGoals, onOpenPortfolio, onGoalsUpdated }) {
   const [messages, setMessages] = useState([
     {
       role: 'ai',
@@ -104,6 +104,9 @@ export default function AvatarChat({ userId, conversationSummary, setConversatio
       }
 
       setGoalAction(data.goalAction || null);
+      if (data.goalsUpdated && onGoalsUpdated) {
+        onGoalsUpdated();
+      }
       setIsLoading(false);
       setIsStreaming(false);
       setStreamingText('');

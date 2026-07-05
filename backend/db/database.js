@@ -121,9 +121,11 @@ function getDbWrapper() {
             } else {
               db.run(sql);
             }
+            const lastInsertRowid = getLastInsertRowId();
+            const changes = getChanges();
             // Persist to disk after writes
             persistToFile();
-            return { lastInsertRowid: getLastInsertRowId(), changes: getChanges() };
+            return { lastInsertRowid, changes };
           } catch (err) {
             console.error('[DB] Run error:', sql, params, err.message);
             return { lastInsertRowid: 0, changes: 0 };
@@ -152,24 +154,20 @@ function getDbWrapper() {
 
 function getLastInsertRowId() {
   try {
-    const stmt = db.prepare('SELECT last_insert_rowid() as id');
-    stmt.step();
-    const result = stmt.getAsObject();
-    stmt.free();
-    return result.id;
-  } catch {
+    const res = db.exec('SELECT last_insert_rowid() as id');
+    return res[0].values[0][0];
+  } catch (err) {
+    console.error('getLastInsertRowId error:', err.message);
     return 0;
   }
 }
 
 function getChanges() {
   try {
-    const stmt = db.prepare('SELECT changes() as c');
-    stmt.step();
-    const result = stmt.getAsObject();
-    stmt.free();
-    return result.c;
-  } catch {
+    const res = db.exec('SELECT changes() as c');
+    return res[0].values[0][0];
+  } catch (err) {
+    console.error('getChanges error:', err.message);
     return 0;
   }
 }

@@ -1,7 +1,7 @@
 /**
  * Sankalp — Chat Route
  * POST /api/chat
- * Full flow: fetch data → rule engine → compliance guard → Gemini call → post-process
+ * Full flow: fetch data → rule engine → compliance guard → Gemini call → database sync → post-process
  */
 const express = require('express');
 const router = express.Router();
@@ -9,60 +9,78 @@ const ruleEngine = require('../services/ruleEngine');
 const complianceGuard = require('../services/complianceGuard');
 const geminiClient = require('../services/geminiClient');
 
-function parseGoalAction(message) {
-  const text = (message || '').toLowerCase();
-  const goalKeywords = ['goal', 'education', 'travel', 'car', 'house', 'wedding', 'retirement', 'savings', 'save', 'buy'];
-  const wantsNewGoal = goalKeywords.some(keyword => text.includes(keyword));
-  const hasCreateIntent = /create|add|set|make|plan/i.test(text);
-  const hasGoalIntent = /goal|education|travel|car|house|wedding|retirement|savings|save/i.test(text);
+function validateGoalAction(action, userId, db) {
+  if (!action || !action.type) return null;
 
-  if (!wantsNewGoal || !hasCreateIntent || !hasGoalIntent) {
-    return null;
-  }
+  if (action.type === 'create') {
+    if (!action.goalName || action.goalName.trim() === '') {
+      return 'Goal name cannot be empty.';
+    }
 
-  let goalName = 'New financial goal';
-  let targetAmount = 500000;
-  let targetDate = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    // Check duplicate
+    const duplicate = db.prepare('SELECT id FROM goals WHERE user_id = ? AND LOWER(goal_name) = ?')
+      .get(userId, action.goalName.toLowerCase().trim());
+    if (duplicate) {
+      return `A goal named "${action.goalName}" already exists. Please choose a different name.`;
+    }
 
-  if (text.includes('education') || text.includes('son') || text.includes('daughter')) {
-    goalName = 'Child education';
-    targetAmount = 1000000;
-  } else if (text.includes('travel')) {
-    goalName = 'Travel fund';
-    targetAmount = 300000;
-  } else if (text.includes('car')) {
-    goalName = 'Car fund';
-    targetAmount = 700000;
-  } else if (text.includes('house')) {
-    goalName = 'Home fund';
-    targetAmount = 2000000;
-  } else if (text.includes('retirement')) {
-    goalName = 'Retirement fund';
-    targetAmount = 5000000;
-  } else if (text.includes('wedding')) {
-    goalName = 'Wedding fund';
-    targetAmount = 800000;
-  } else if (text.includes('save') || text.includes('savings')) {
-    goalName = 'Monthly savings goal';
-  }
+    if (action.targetAmount === undefined || Number(action.targetAmount) <= 0) {
+      return 'Target amount must be a positive number.';
+    }
 
-  const amountMatch = text.match(/(?:₹|rs|inr|rupees?)\s*([0-9,]+)/i)
-    || text.match(/(?:save|saving|target|amount|goal)\s*(?:of)?\s*([0-9,]+)/i)
-    || text.match(/\b([0-9]{2,7})\b/);
+    if (action.currentSaved !== undefined && Number(action.currentSaved) < 0) {
+      return 'Current saved amount cannot be negative.';
+    }
 
-  if (amountMatch) {
-    const parsedAmount = Number(String(amountMatch[1] || amountMatch[0]).replace(/,/g, ''));
-    if (!Number.isNaN(parsedAmount) && parsedAmount > 0) {
-      targetAmount = parsedAmount;
+    // Date validation
+    if (!action.targetDate) {
+      return 'Target date is required.';
+    }
+    const targetDate = new Date(action.targetDate);
+    if (isNaN(targetDate.getTime())) {
+      return 'Invalid date format. Please use YYYY-MM-DD.';
+    }
+    if (targetDate <= new Date()) {
+      return 'Target date must be in the future.';
     }
   }
 
-  if (/this month|monthly|month/i.test(text)) {
-    const monthEnd = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0);
-    targetDate = monthEnd.toISOString().split('T')[0];
+  if (action.type === 'update') {
+    if (!action.goalId) {
+      return 'Goal ID is required to update.';
+    }
+    const existing = db.prepare('SELECT * FROM goals WHERE id = ?').get(action.goalId);
+    if (!existing) {
+      return 'Goal not found.';
+    }
+    if (action.targetAmount !== undefined && Number(action.targetAmount) <= 0) {
+      return 'Target amount must be a positive number.';
+    }
+    if (action.currentSaved !== undefined && Number(action.currentSaved) < 0) {
+      return 'Current saved amount cannot be negative.';
+    }
+    if (action.targetDate) {
+      const targetDate = new Date(action.targetDate);
+      if (isNaN(targetDate.getTime())) {
+        return 'Invalid date format. Please use YYYY-MM-DD.';
+      }
+      if (targetDate <= new Date()) {
+        return 'Target date must be in the future.';
+      }
+    }
   }
 
-  return { goalName, targetAmount, targetDate };
+  if (action.type === 'delete' || action.type === 'complete') {
+    if (!action.goalId) {
+      return 'Goal ID is required.';
+    }
+    const existing = db.prepare('SELECT * FROM goals WHERE id = ?').get(action.goalId);
+    if (!existing) {
+      return 'Goal not found.';
+    }
+  }
+
+  return null; // Valid
 }
 
 function buildAdvisorCards(portfolioSummary, spendingSummary, goals) {
@@ -138,28 +156,17 @@ router.post('/chat', async (req, res) => {
     const portfolioSummary = ruleEngine.getPortfolioSummary(userId, db);
     const spendingSummary = ruleEngine.getSpendingSummary(userId, db);
     const goals = ruleEngine.getGoalProgress(userId, db);
-    const dashboardInsights = ruleEngine.getDashboardInsights(userId, db);
-    const wellnessScore = ruleEngine.getWellnessScore(userId, db);
-    const nextBestActions = ruleEngine.getNextBestActions(userId, db);
-    const riskAdjustedRecommendations = ruleEngine.getRiskAdjustedRecommendations(userId, db);
-    const monthChangeAnalysis = ruleEngine.getMonthChangeAnalysis(userId, db);
+    const dashboardInsights = ruleEngine.getDashboardInsights ? ruleEngine.getDashboardInsights(userId, db) : [];
+    const wellnessScore = ruleEngine.getWellnessScore ? ruleEngine.getWellnessScore(userId, db) : null;
+    const nextBestActions = ruleEngine.getNextBestActions ? ruleEngine.getNextBestActions(userId, db) : [];
+    const riskAdjustedRecommendations = ruleEngine.getRiskAdjustedRecommendations ? ruleEngine.getRiskAdjustedRecommendations(userId, db) : [];
+    const monthChangeAnalysis = ruleEngine.getMonthChangeAnalysis ? ruleEngine.getMonthChangeAnalysis(userId, db) : [];
 
     // 3. Generate compliance constraints
     const complianceText = complianceGuard.generateComplianceConstraints(user, portfolioSummary, db);
     const advisorCards = buildAdvisorCards(portfolioSummary, spendingSummary, goals);
-    const goalAction = parseGoalAction(message);
 
-    if (goalAction) {
-      const existing = db.prepare('SELECT id FROM goals WHERE user_id = ? AND goal_name = ?').get(userId, goalAction.goalName);
-      if (!existing) {
-        db.prepare(`
-          INSERT INTO goals (user_id, goal_name, target_amount, current_saved, target_date)
-          VALUES (?, ?, ?, 0, ?)
-        `).run(userId, goalAction.goalName, goalAction.targetAmount, goalAction.targetDate);
-      }
-    }
-
-    // 4. Single Gemini API call
+    // 4. Gemini API call
     const rawReply = await geminiClient.chatWithSankalp({
       user,
       portfolioSummary,
@@ -177,10 +184,63 @@ router.post('/chat', async (req, res) => {
     }, apiUsage);
 
     // 5. Post-process for compliance
-    const processedReply = complianceGuard.postProcessReply(rawReply);
+    let processedReply = complianceGuard.postProcessReply(rawReply);
 
-    // 6. Send response
-    const refreshedGoals = ruleEngine.getGoalProgress(userId, db);
+    // 6. DB Sync (Process Goal Action)
+    let goalsUpdated = false;
+    let actionExecuted = null;
+
+    if (processedReply.goal_action && processedReply.goal_action.type) {
+      const action = processedReply.goal_action;
+      console.log(`[NLP Goals] Intent detected: ${action.type} for user ${userId}`);
+
+      // Validate Action
+      const validationError = validateGoalAction(action, userId, db);
+      if (validationError) {
+        console.warn(`[NLP Goals] Validation failed: ${validationError}`);
+        processedReply.reply = `I understand you want to ${action.type} a goal, but there was a validation issue: ${validationError}`;
+        processedReply.suggested_action = null;
+      } else {
+        // Execute Action
+        try {
+          if (action.type === 'create') {
+            db.prepare(
+              'INSERT INTO goals (user_id, goal_name, target_amount, current_saved, target_date) VALUES (?, ?, ?, ?, ?)'
+            ).run(userId, action.goalName, Number(action.targetAmount), Number(action.currentSaved || 0), action.targetDate);
+            actionExecuted = { type: 'create', goalName: action.goalName };
+            goalsUpdated = true;
+          } else if (action.type === 'update') {
+            const existing = db.prepare('SELECT * FROM goals WHERE id = ?').get(action.goalId);
+            db.prepare(`
+              UPDATE goals 
+              SET goal_name = ?, target_amount = ?, current_saved = ?, target_date = ? 
+              WHERE id = ?
+            `).run(
+              action.goalName !== undefined ? action.goalName : existing.goal_name,
+              action.targetAmount !== undefined ? Number(action.targetAmount) : existing.target_amount,
+              action.currentSaved !== undefined ? Number(action.currentSaved) : existing.current_saved,
+              action.targetDate !== undefined ? action.targetDate : existing.target_date,
+              action.goalId
+            );
+            actionExecuted = { type: 'update', goalId: action.goalId };
+            goalsUpdated = true;
+          } else if (action.type === 'delete') {
+            db.prepare('DELETE FROM goals WHERE id = ?').run(action.goalId);
+            actionExecuted = { type: 'delete', goalId: action.goalId };
+            goalsUpdated = true;
+          } else if (action.type === 'complete') {
+            db.prepare('UPDATE goals SET current_saved = target_amount WHERE id = ?').run(action.goalId);
+            actionExecuted = { type: 'complete', goalId: action.goalId };
+            goalsUpdated = true;
+          }
+        } catch (dbErr) {
+          console.error('[NLP Goals] Database execution failed:', dbErr);
+          processedReply.reply = `I tried to update your goals but encountered a database error. Please try again.`;
+        }
+      }
+    }
+
+    const refreshedGoals = goalsUpdated ? ruleEngine.getGoalProgress(userId, db) : goals;
 
     res.json({
       reply: processedReply.reply || "I'm here to help! Could you rephrase that?",
@@ -194,7 +254,9 @@ router.post('/chat', async (req, res) => {
       nextBestActions,
       riskAdjustedRecommendations,
       monthChangeAnalysis,
-      goalAction: goalAction ? { created: true, goalName: goalAction.goalName, targetAmount: goalAction.targetAmount, targetDate: goalAction.targetDate, goals: refreshedGoals } : null
+      goalsUpdated,
+      actionExecuted,
+      goals: refreshedGoals
     });
 
   } catch (err) {
@@ -206,14 +268,9 @@ router.post('/chat', async (req, res) => {
       compliance_note: null,
       complianceChecked: false,
       advisorCards: [],
-      dashboardInsights: [],
-      wellnessScore: null,
-      nextBestActions: [],
-      riskAdjustedRecommendations: [],
-      monthChangeAnalysis: []
+      goalsUpdated: false
     });
   }
 });
 
 module.exports = router;
-module.exports.parseGoalAction = parseGoalAction;

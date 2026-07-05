@@ -45,6 +45,7 @@ export default function App() {
           onBack={() => setCurrentScreen('dashboard')}
           onOpenGoals={() => setCurrentScreen('goals')}
           onOpenPortfolio={() => setCurrentScreen('dashboard')}
+          onGoalsUpdated={() => setNudgeRefreshKey(k => k + 1)}
         />
       );
     }
