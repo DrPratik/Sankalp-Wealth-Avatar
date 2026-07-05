@@ -1,0 +1,50 @@
+# Sankalp AI Wealth Advisor — Cursor Rules
+
+Rules, guidelines, and context patterns for AI development inside the Sankalp repository.
+
+## 1. Codebase Architecture
+
+```
+sankalp-wealth-avatar/
+├── backend/
+│   ├── db/               # sql.js WebAssembly memory SQLite db + schema
+│   ├── routes/           # Express router endpoints
+│   ├── services/         # Decoupled business logic (Simulation services)
+│   │   ├── GoalService.js
+│   │   ├── BankingService.js
+│   │   ├── PortfolioService.js
+│   │   └── AnalyticsService.js
+│   └── server.js         # Entry point
+└── frontend/
+    └── src/
+        ├── components/   # UI Modules (GoalTracker, AvatarChat, etc.)
+        └── App.jsx       # App Shell
+```
+
+## 2. Coding Principles & Guidelines
+
+### 2.1 API-Ready Service Layer
+* **Constraint**: Do NOT execute direct SQLite statements or business algorithms inside Express route handlers or dialogue parsing logic. 
+* **Guideline**: Delegate all data mutation, transactional accounting, and analysis strictly to the standalone service layer modules in `backend/services/`.
+
+### 2.2 Atomic SQL Transactions
+* **Constraint**: Any database operations updating multiple rows, tables, or creating transaction ledger items (e.g., creating FDs, executing trades, or goal fund transfers) must be executed in atomic blocks.
+* **Guideline**: Wrap statements in standard SQL transaction control blocks:
+  ```javascript
+  try {
+    db.prepare('BEGIN TRANSACTION').run();
+    // operations...
+    db.prepare('COMMIT').run();
+  } catch (err) {
+    try { db.prepare('ROLLBACK').run(); } catch(e) {}
+    throw err;
+  }
+  ```
+
+### 2.3 Resilient JSON Parsing
+* **Constraint**: Do not use standard `JSON.parse` directly on raw generative AI responses. LLM outputs may include Markdown fences or prefix text.
+* **Guideline**: Always use the `cleanAndParseJson(text)` utility in `geminiClient.js` to strip fences and parse JSON robustly.
+
+### 2.4 Debounced Persistence
+* **Constraint**: Do not execute synchronous blocking database saves (`db.export()`) on every run method.
+* **Guideline**: Delegate persistence to the debounced async write queue helper in `database.js` (`persistToFile(false)`).
