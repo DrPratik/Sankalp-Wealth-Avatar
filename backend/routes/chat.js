@@ -231,18 +231,20 @@ router.post('/chat', async (req, res) => {
     let portfolioUpdated = false;
     let actionExecuted = null;
 
-    // 6a. Process Goal Action
-    if (processedReply.goal_action && processedReply.goal_action.type) {
-      const action = processedReply.goal_action;
-      console.log(`[NLP Goals] Intent detected: ${action.type} for user ${userId}`);
+    // 6a. Process Goal Actions
+    if (processedReply.goal_actions && Array.isArray(processedReply.goal_actions)) {
+      try {
+        db.prepare('BEGIN TRANSACTION').run();
+        
+        for (const action of processedReply.goal_actions) {
+          if (!action.type) continue;
+          console.log(`[NLP Goals] Intent detected: ${action.type} for user ${userId}`);
 
-      const validationError = validateGoalAction(action, userId, db);
-      if (validationError) {
-        console.warn(`[NLP Goals] Validation failed: ${validationError}`);
-        processedReply.reply = `I understand you want to ${action.type} a goal, but there was a validation issue: ${validationError}`;
-        processedReply.suggested_action = null;
-      } else {
-        try {
+          const validationError = validateGoalAction(action, userId, db);
+          if (validationError) {
+            throw new Error(`Validation failed for ${action.type}: ${validationError}`);
+          }
+
           if (action.type === 'create') {
             GoalService.createGoal(userId, action, db);
             actionExecuted = { type: 'create', goalName: action.goalName };
@@ -273,10 +275,14 @@ router.post('/chat', async (req, res) => {
             actionExecuted = { type: 'archive', goalId: action.goalId };
             goalsUpdated = true;
           }
-        } catch (dbErr) {
-          console.error('[NLP Goals] Database execution failed:', dbErr);
-          processedReply.reply = `I tried to update your goals but encountered a database error.`;
         }
+        
+        db.prepare('COMMIT').run();
+      } catch (dbErr) {
+        try { db.prepare('ROLLBACK').run(); } catch(e) {}
+        console.error('[NLP Goals] Multi-action database execution failed:', dbErr);
+        processedReply.reply = `I tried to update your goals but encountered an issue: ${dbErr.message}`;
+        goalsUpdated = false;
       }
     }
 
@@ -318,6 +324,7 @@ router.post('/chat', async (req, res) => {
       balanceUpdated,
       portfolioUpdated,
       actionExecuted,
+      goalAction: (processedReply.goal_actions && processedReply.goal_actions[0]) || null,
       goals: refreshedGoals
     });
 

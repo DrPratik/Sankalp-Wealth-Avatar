@@ -120,12 +120,11 @@ export default function AvatarChat({ userId, conversationSummary, setConversatio
         complianceChecked: data.complianceChecked
       }]);
 
-      // Update rolling conversation summary every 4 turns
-      if (turnCount.current % 4 === 0) {
-        const lastFew = messages.slice(-4).map(m => m.text).join('. ');
-        const truncated = lastFew.length > 200 ? lastFew.substring(0, 200) + '...' : lastFew;
-        setConversationSummary(truncated);
-      }
+      // Update rolling conversation summary on every turn (keep the last 4 messages to preserve context)
+      const allMessages = [...messages, { role: 'user', text: textToSend }, { role: 'ai', text: replyText }];
+      const lastFew = allMessages.slice(-4).map(m => `${m.role === 'user' ? 'User' : 'Sankalp'}: ${m.text}`).join(' | ');
+      const truncated = lastFew.length > 500 ? lastFew.substring(lastFew.length - 500) : lastFew;
+      setConversationSummary(truncated);
 
     } catch (err) {
       setIsLoading(false);
@@ -186,8 +185,13 @@ export default function AvatarChat({ userId, conversationSummary, setConversatio
         {goalAction && (
           <div style={{ padding: '0 0 8px' }}>
             <div style={{ border: '1px solid rgba(45, 212, 191, 0.25)', borderRadius: '12px', background: 'rgba(45, 212, 191, 0.12)', padding: '10px 12px' }}>
-              <div style={{ fontSize: '0.74rem', fontWeight: 700 }}>Goal created</div>
-              <div style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)', marginTop: '2px' }}>{goalAction.goalName} • ₹{goalAction.targetAmount.toLocaleString('en-IN')}</div>
+              <div style={{ fontSize: '0.74rem', fontWeight: 700 }}>
+                {goalAction.type === 'create' ? 'Goal Created' : goalAction.type === 'delete' ? 'Goal Deleted' : 'Goal Updated'}
+              </div>
+              <div style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)', marginTop: '2px' }}>
+                {goalAction.goalName || 'Goal'}
+                {goalAction.targetAmount !== undefined && goalAction.targetAmount !== null && ` • ₹${Number(goalAction.targetAmount).toLocaleString('en-IN')}`}
+              </div>
             </div>
           </div>
         )}
