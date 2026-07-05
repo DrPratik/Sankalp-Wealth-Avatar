@@ -159,7 +159,7 @@ async function chatWithSankalp(promptPayload, apiUsage) {
     console.log(`[Gemini] Chat response: ${responseText.substring(0, 100)}...`);
 
     // Parse JSON response
-    const parsed = JSON.parse(responseText);
+    const parsed = cleanAndParseJson(responseText);
     return parsed;
 
   } catch (err) {
@@ -175,11 +175,45 @@ async function chatWithSankalp(promptPayload, apiUsage) {
       if (apiUsage && usage) {
         apiUsage.log(usage.promptTokenCount || 0, usage.candidatesTokenCount || 0);
       }
-      return JSON.parse(responseText);
+      return cleanAndParseJson(responseText);
     } catch (retryErr) {
       console.error('[Gemini] Retry failed:', retryErr.message);
       return getFallbackChat(promptPayload.user?.id);
     }
+  }
+}
+
+function cleanAndParseJson(text) {
+  if (!text) throw new Error('Empty response');
+
+  let cleaned = text.trim();
+  if (cleaned.startsWith('```')) {
+    cleaned = cleaned.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '');
+  }
+  cleaned = cleaned.trim();
+
+  try {
+    return JSON.parse(cleaned);
+  } catch (err) {
+    const firstBrace = cleaned.indexOf('{');
+    const firstBracket = cleaned.indexOf('[');
+    let startIdx = -1;
+    let endIdx = -1;
+
+    if (firstBrace !== -1 && (firstBracket === -1 || firstBrace < firstBracket)) {
+      startIdx = firstBrace;
+      endIdx = cleaned.lastIndexOf('}');
+    } else if (firstBracket !== -1) {
+      startIdx = firstBracket;
+      endIdx = cleaned.lastIndexOf(']');
+    }
+
+    if (startIdx !== -1 && endIdx !== -1 && endIdx > startIdx) {
+      const extracted = cleaned.substring(startIdx, endIdx + 1);
+      return JSON.parse(extracted);
+    }
+
+    throw err;
   }
 }
 
@@ -217,7 +251,7 @@ Respond ONLY with a valid JSON array, no markdown, no code fences.`;
       apiUsage.log(usage.promptTokenCount || 0, usage.candidatesTokenCount || 0);
     }
 
-    const parsed = JSON.parse(responseText);
+    const parsed = cleanAndParseJson(responseText);
     return Array.isArray(parsed) ? parsed : [parsed];
 
   } catch (err) {

@@ -41,6 +41,7 @@ CREATE TABLE IF NOT EXISTS goals (
   current_saved REAL NOT NULL,
   target_date TEXT NOT NULL,
   status TEXT NOT NULL DEFAULT 'Active',
+  investment_type TEXT NOT NULL DEFAULT 'Savings',
   FOREIGN KEY (user_id) REFERENCES users(id)
 );
 

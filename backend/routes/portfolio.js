@@ -8,6 +8,7 @@
 const express = require('express');
 const router = express.Router();
 const ruleEngine = require('../services/ruleEngine');
+const GoalService = require('../services/GoalService');
 
 // List all users (for persona selector)
 router.get('/users', (req, res) => {
@@ -60,7 +61,7 @@ router.get('/goals/:userId', (req, res) => {
     const userId = parseInt(req.params.userId);
     const db = req.app.locals.db;
 
-    const goals = ruleEngine.getGoalProgress(userId, db);
+    const goals = GoalService.getGoals(userId, db);
     res.json(goals);
   } catch (err) {
     console.error('[Goals] Error:', err);
@@ -78,11 +79,8 @@ router.post('/goals', (req, res) => {
       return res.status(400).json({ error: 'userId, goalName, targetAmount, and targetDate are required' });
     }
 
-    const result = db.prepare(
-      'INSERT INTO goals (user_id, goal_name, target_amount, current_saved, target_date) VALUES (?, ?, ?, ?, ?)'
-    ).run(userId, goalName, Number(targetAmount), Number(currentSaved || 0), targetDate);
-
-    res.json({ success: true, goalId: result.lastInsertRowid });
+    const result = GoalService.createGoal(userId, { goalName, targetAmount, currentSaved, targetDate }, db);
+    res.json(result);
   } catch (err) {
     console.error('[Goals Add] Error:', err);
     res.status(500).json({ error: 'Failed to add goal' });
@@ -96,25 +94,8 @@ router.put('/goals/:goalId', (req, res) => {
     const { goalName, targetAmount, currentSaved, targetDate, status } = req.body;
     const db = req.app.locals.db;
 
-    const existing = db.prepare('SELECT * FROM goals WHERE id = ?').get(goalId);
-    if (!existing) {
-      return res.status(404).json({ error: 'Goal not found' });
-    }
-
-    db.prepare(`
-      UPDATE goals 
-      SET goal_name = ?, target_amount = ?, current_saved = ?, target_date = ?, status = ?
-      WHERE id = ?
-    `).run(
-      goalName !== undefined ? goalName : existing.goal_name,
-      targetAmount !== undefined ? Number(targetAmount) : existing.target_amount,
-      currentSaved !== undefined ? Number(currentSaved) : existing.current_saved,
-      targetDate !== undefined ? targetDate : existing.target_date,
-      status !== undefined ? status : (existing.status || 'Active'),
-      goalId
-    );
-
-    res.json({ success: true });
+    const result = GoalService.updateGoal(null, goalId, { goalName, targetAmount, currentSaved, targetDate, status }, db);
+    res.json(result);
   } catch (err) {
     console.error('[Goals Update] Error:', err);
     res.status(500).json({ error: 'Failed to update goal' });
@@ -127,12 +108,8 @@ router.delete('/goals/:goalId', (req, res) => {
     const goalId = parseInt(req.params.goalId);
     const db = req.app.locals.db;
 
-    const result = db.prepare('DELETE FROM goals WHERE id = ?').run(goalId);
-    if (result.changes === 0) {
-      return res.status(404).json({ error: 'Goal not found' });
-    }
-
-    res.json({ success: true });
+    const result = GoalService.deleteGoal(null, goalId, db);
+    res.json(result);
   } catch (err) {
     console.error('[Goals Delete] Error:', err);
     res.status(500).json({ error: 'Failed to delete goal' });

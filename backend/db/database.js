@@ -2,7 +2,7 @@
  * Sankalp AI Wealth Avatar — Database Helper
  * Wraps sql.js with a synchronous-like API for Express route handlers.
  * Loads the DB file into memory on startup, provides query helpers,
- * and persists changes back to disk.
+ * and persists changes back to disk with a debounced async write-queue.
  */
 const initSqlJs = require('sql.js');
 const fs = require('fs');
@@ -13,6 +13,8 @@ const DB_PATH = path.join(__dirname, '..', 'db', 'sankalp.db');
 const SCHEMA_PATH = path.join(__dirname, 'schema.sql');
 
 let db = null;
+let persistTimeout = null;
+let isDirty = false;
 
 /**
  * Initialize the database. Must be called before server starts listening.
@@ -30,6 +32,20 @@ async function initDb() {
   db = new SQL.Database(fileBuffer);
   ensureSchema();
   console.log('[DB] SQLite loaded from:', DB_PATH);
+  
+  // Clean shutdown persist
+  process.on('SIGINT', () => {
+    console.log('[DB] SIGINT received. Syncing DB state to disk...');
+    saveSync();
+    process.exit(0);
+  });
+  
+  process.on('SIGTERM', () => {
+    console.log('[DB] SIGTERM received. Syncing DB state to disk...');
+    saveSync();
+    process.exit(0);
+  });
+
   return getDbWrapper();
 }
 
@@ -41,9 +57,9 @@ function ensureSchema() {
     ensureColumn('users', 'savings_balance', 'REAL NOT NULL DEFAULT 0');
     ensureColumn('users', 'monthly_income', 'REAL NOT NULL DEFAULT 0');
     ensureColumn('goals', 'current_saved', 'REAL NOT NULL DEFAULT 0');
-    ensureColumn('goals', 'target_date', 'TEXT NOT NULL DEFAULT "")');
+    ensureColumn('goals', 'target_date', 'TEXT NOT NULL DEFAULT ""');
 
-    persistToFile();
+    persistToFile(true); // force initial schema persist
   } catch (err) {
     console.error('[DB] Schema ensure failed:', err.message);
   }
@@ -75,8 +91,6 @@ function getDbWrapper() {
   return {
     /**
      * Prepare and run a query, returning all matching rows as an array of objects.
-     * Usage: db.prepare('SELECT * FROM users WHERE id = ?').all(1)
-     * Returns: [{id: 1, name: 'Rahul', ...}]
      */
     prepare(sql) {
       return {
@@ -123,8 +137,8 @@ function getDbWrapper() {
             }
             const lastInsertRowid = getLastInsertRowId();
             const changes = getChanges();
-            // Persist to disk after writes
-            persistToFile();
+            // Debounced persist to disk
+            persistToFile(false);
             return { lastInsertRowid, changes };
           } catch (err) {
             console.error('[DB] Run error:', sql, params, err.message);
@@ -139,7 +153,7 @@ function getDbWrapper() {
      */
     exec(sql) {
       db.exec(sql);
-      persistToFile();
+      persistToFile(false);
     },
 
     /**
@@ -147,7 +161,7 @@ function getDbWrapper() {
      */
     run(sql, params = []) {
       db.run(sql, params);
-      persistToFile();
+      persistToFile(false);
     }
   };
 }
@@ -174,13 +188,34 @@ function getChanges() {
 
 /**
  * Persist the in-memory database to disk.
- * Called after every write operation.
+ * Uses 100ms debouncing to prevent event loop blocking.
  */
-function persistToFile() {
+function persistToFile(force = false) {
+  isDirty = true;
+  
+  if (force) {
+    saveSync();
+    return;
+  }
+
+  if (!persistTimeout) {
+    persistTimeout = setTimeout(() => {
+      saveSync();
+    }, 100);
+  }
+}
+
+function saveSync() {
+  if (!isDirty) return;
   try {
+    if (persistTimeout) {
+      clearTimeout(persistTimeout);
+      persistTimeout = null;
+    }
     const data = db.export();
     const buffer = Buffer.from(data);
     fs.writeFileSync(DB_PATH, buffer);
+    isDirty = false;
   } catch (err) {
     console.error('[DB] Failed to persist:', err.message);
   }

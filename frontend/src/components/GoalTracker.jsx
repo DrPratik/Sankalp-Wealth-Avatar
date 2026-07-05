@@ -14,7 +14,8 @@ export default function GoalTracker({ userId }) {
     goalName: '',
     targetAmount: '',
     currentSaved: '',
-    targetDate: ''
+    targetDate: '',
+    investmentType: 'Savings'
   });
 
   // Edit states
@@ -23,7 +24,8 @@ export default function GoalTracker({ userId }) {
     goalName: '',
     targetAmount: '',
     currentSaved: '',
-    targetDate: ''
+    targetDate: '',
+    investmentType: 'Savings'
   });
 
   const fetchGoals = useCallback(() => {
@@ -51,13 +53,14 @@ export default function GoalTracker({ userId }) {
           goalName: newGoal.goalName,
           targetAmount: Number(newGoal.targetAmount),
           currentSaved: Number(newGoal.currentSaved || 0),
-          targetDate: newGoal.targetDate
+          targetDate: newGoal.targetDate,
+          investmentType: newGoal.investmentType || 'Savings'
         })
       });
 
       if (res.ok) {
         setIsAdding(false);
-        setNewGoal({ goalName: '', targetAmount: '', currentSaved: '', targetDate: '' });
+        setNewGoal({ goalName: '', targetAmount: '', currentSaved: '', targetDate: '', investmentType: 'Savings' });
         fetchGoals();
       }
     } catch (err) {
@@ -71,7 +74,8 @@ export default function GoalTracker({ userId }) {
       goalName: goal.goalName,
       targetAmount: goal.targetAmount,
       currentSaved: goal.currentSaved,
-      targetDate: goal.targetDate
+      targetDate: goal.targetDate,
+      investmentType: goal.investmentType || 'Savings'
     });
   };
 
@@ -84,7 +88,8 @@ export default function GoalTracker({ userId }) {
           goalName: editFields.goalName,
           targetAmount: Number(editFields.targetAmount),
           currentSaved: Number(editFields.currentSaved),
-          targetDate: editFields.targetDate
+          targetDate: editFields.targetDate,
+          investmentType: editFields.investmentType
         })
       });
 
@@ -246,15 +251,30 @@ export default function GoalTracker({ userId }) {
             </div>
           </div>
 
-          <div>
-            <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: '2px' }}>Target Date</label>
-            <input
-              type="date"
-              value={newGoal.targetDate}
-              onChange={e => setNewGoal(p => ({ ...p, targetDate: e.target.value }))}
-              style={{ width: '100%', padding: '8px', border: '1px solid var(--color-border)', borderRadius: '8px', fontSize: '0.8rem', outline: 'none' }}
-              required
-            />
+           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+            <div>
+              <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: '2px' }}>Target Date</label>
+              <input
+                type="date"
+                value={newGoal.targetDate}
+                onChange={e => setNewGoal(p => ({ ...p, targetDate: e.target.value }))}
+                style={{ width: '100%', padding: '8px', border: '1px solid var(--color-border)', borderRadius: '8px', fontSize: '0.8rem', outline: 'none' }}
+                required
+              />
+            </div>
+            <div>
+              <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: '2px' }}>Strategy</label>
+              <select
+                value={newGoal.investmentType || 'Savings'}
+                onChange={e => setNewGoal(p => ({ ...p, investmentType: e.target.value }))}
+                style={{ width: '100%', padding: '8px', border: '1px solid var(--color-border)', borderRadius: '8px', fontSize: '0.8rem', outline: 'none', background: 'white' }}
+              >
+                <option value="Savings">Savings Account</option>
+                <option value="FD">Fixed Deposit</option>
+                <option value="Mutual Fund">Mutual Funds</option>
+                <option value="Stocks">Equity Shares</option>
+              </select>
+            </div>
           </div>
 
           <button type="submit" style={{
@@ -358,12 +378,24 @@ export default function GoalTracker({ userId }) {
                     />
                   </div>
 
-                  <input
-                    type="date"
-                    value={editFields.targetDate}
-                    onChange={e => setEditFields(p => ({ ...p, targetDate: e.target.value }))}
-                    style={{ padding: '6px', border: '1px solid var(--color-border)', borderRadius: '6px', fontSize: '0.78rem', background: 'white' }}
-                  />
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
+                    <input
+                      type="date"
+                      value={editFields.targetDate}
+                      onChange={e => setEditFields(p => ({ ...p, targetDate: e.target.value }))}
+                      style={{ padding: '6px', border: '1px solid var(--color-border)', borderRadius: '6px', fontSize: '0.78rem', background: 'white' }}
+                    />
+                    <select
+                      value={editFields.investmentType || 'Savings'}
+                      onChange={e => setEditFields(p => ({ ...p, investmentType: e.target.value }))}
+                      style={{ padding: '6px', border: '1px solid var(--color-border)', borderRadius: '6px', fontSize: '0.78rem', background: 'white' }}
+                    >
+                      <option value="Savings">Savings Account</option>
+                      <option value="FD">Fixed Deposit</option>
+                      <option value="Mutual Fund">Mutual Funds</option>
+                      <option value="Stocks">Equity Shares</option>
+                    </select>
+                  </div>
                 </div>
               ) : (
                 /* Standard Display Mode */
@@ -383,6 +415,7 @@ export default function GoalTracker({ userId }) {
                     <p style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>
                       Target by {new Date(goal.targetDate).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })}
                       {!isPaused && ` · ${goal.monthsRemaining} months left`}
+                      {` · ${goal.fundingSource}`}
                     </p>
                   </div>
 

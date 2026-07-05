@@ -8,6 +8,9 @@ const router = express.Router();
 const ruleEngine = require('../services/ruleEngine');
 const complianceGuard = require('../services/complianceGuard');
 const geminiClient = require('../services/geminiClient');
+const GoalService = require('../services/GoalService');
+const BankingService = require('../services/BankingService');
+const PortfolioService = require('../services/PortfolioService');
 
 function validateGoalAction(action, userId, db) {
   if (!action || !action.type) return null;
@@ -88,115 +91,24 @@ function executeBankingAction(action, userId, db) {
 
   try {
     switch (action.type) {
-      case 'transfer': {
-        const amt = Number(action.amount);
-        const recipient = action.recipient || 'Recipient';
-        db.prepare('UPDATE users SET savings_balance = savings_balance - ? WHERE id = ?').run(amt, userId);
-        db.prepare(
-          'INSERT INTO transactions (user_id, date, description, amount, category) VALUES (?, date(\'now\'), ?, ?, \'Transfer\')'
-        ).run(userId, `Transfer to ${recipient}`, -amt);
-        console.log(`[Banking Action] Executed transfer of ₹${amt} to ${recipient}`);
-        return { success: true, message: `Transferred ₹${amt.toLocaleString('en-IN')} to ${recipient} successfully.` };
-      }
-      
-      case 'pay_bill': {
-        const amt = Number(action.amount);
-        const recipient = action.recipient || 'Credit Card Bill';
-        db.prepare('UPDATE users SET savings_balance = savings_balance - ? WHERE id = ?').run(amt, userId);
-        db.prepare(
-          'INSERT INTO transactions (user_id, date, description, amount, category) VALUES (?, date(\'now\'), ?, ?, \'Bills\')'
-        ).run(userId, `Payment: ${recipient}`, -amt);
-        console.log(`[Banking Action] Executed bill payment of ₹${amt} for ${recipient}`);
-        return { success: true, message: `Paid ₹${amt.toLocaleString('en-IN')} for ${recipient} successfully.` };
-      }
-
-      case 'pay_emi': {
-        const amt = Number(action.amount);
-        const recipient = action.recipient || 'Loan EMI';
-        db.prepare('UPDATE users SET savings_balance = savings_balance - ? WHERE id = ?').run(amt, userId);
-        db.prepare(
-          'INSERT INTO transactions (user_id, date, description, amount, category) VALUES (?, date(\'now\'), ?, ?, \'EMI\')'
-        ).run(userId, `EMI Payment: ${recipient}`, -amt);
-        console.log(`[Banking Action] Executed EMI payment of ₹${amt}`);
-        return { success: true, message: `Paid EMI of ₹${amt.toLocaleString('en-IN')} successfully.` };
-      }
-
-      case 'freeze_card': {
-        db.prepare("UPDATE users SET card_status = 'Frozen' WHERE id = ?").run(userId);
-        console.log(`[Banking Action] Card frozen for user ${userId}`);
-        return { success: true, message: 'Your debit card has been frozen successfully.' };
-      }
-
-      case 'unfreeze_card': {
-        db.prepare("UPDATE users SET card_status = 'Active' WHERE id = ?").run(userId);
-        console.log(`[Banking Action] Card unfrozen for user ${userId}`);
-        return { success: true, message: 'Your debit card has been unfrozen successfully.' };
-      }
-
-      case 'block_card': {
-        db.prepare("UPDATE users SET card_status = 'Blocked' WHERE id = ?").run(userId);
-        console.log(`[Banking Action] Card blocked for user ${userId}`);
-        return { success: true, message: 'Your debit card has been permanently blocked. A replacement has been ordered.' };
-      }
-
-      case 'open_fd': {
-        const amt = Number(action.amount);
-        const duration = action.durationMonths || 12;
-        db.prepare('UPDATE users SET savings_balance = savings_balance - ? WHERE id = ?').run(amt, userId);
-        db.prepare(
-          'INSERT INTO transactions (user_id, date, description, amount, category) VALUES (?, date(\'now\'), ?, ?, \'Investment\')'
-        ).run(userId, `Opened Fixed Deposit`, -amt);
-        db.prepare(
-          'INSERT INTO portfolio_holdings (user_id, instrument_name, instrument_type, current_value, invested_value, category) VALUES (?, ?, \'FD\', ?, ?, \'Debt\')'
-        ).run(userId, `Fixed Deposit (${duration} Months)`, amt, amt);
-        console.log(`[Banking Action] Opened FD of ₹${amt} for ${duration} months`);
-        return { success: true, message: `Opened a Fixed Deposit of ₹${amt.toLocaleString('en-IN')} for ${duration} months successfully.` };
-      }
-
-      case 'buy_asset': {
-        const amt = Number(action.amount);
-        const assetName = action.assetName || 'Mutual Fund';
-        db.prepare('UPDATE users SET savings_balance = savings_balance - ? WHERE id = ?').run(amt, userId);
-        db.prepare(
-          'INSERT INTO transactions (user_id, date, description, amount, category) VALUES (?, date(\'now\'), ?, ?, \'Investment\')'
-        ).run(userId, `Invested in ${assetName}`, -amt);
-        
-        // Update portfolio holdings
-        const existing = db.prepare('SELECT id FROM portfolio_holdings WHERE user_id = ? AND instrument_name = ?').get(userId, assetName);
-        if (existing) {
-          db.prepare('UPDATE portfolio_holdings SET current_value = current_value + ?, invested_value = invested_value + ? WHERE id = ?').run(amt, amt, existing.id);
-        } else {
-          db.prepare(
-            'INSERT INTO portfolio_holdings (user_id, instrument_name, instrument_type, current_value, invested_value, category) VALUES (?, ?, \'Mutual Fund\', ?, ?, \'Equity\')'
-          ).run(userId, assetName, amt, amt);
-        }
-        console.log(`[Banking Action] Bought asset ${assetName} for ₹${amt}`);
-        return { success: true, message: `Invested ₹${amt.toLocaleString('en-IN')} in ${assetName} successfully.` };
-      }
-
-      case 'sell_asset': {
-        const amt = Number(action.amount);
-        const assetName = action.assetName || 'Mutual Fund';
-        
-        const existing = db.prepare('SELECT * FROM portfolio_holdings WHERE user_id = ? AND instrument_name = ?').get(userId, assetName);
-        if (!existing || existing.current_value < amt) {
-          return { success: false, error: 'Insufficient holdings to sell.' };
-        }
-
-        db.prepare('UPDATE users SET savings_balance = savings_balance + ? WHERE id = ?').run(amt, userId);
-        db.prepare(
-          'INSERT INTO transactions (user_id, date, description, amount, category) VALUES (?, date(\'now\'), ?, ?, \'Investment\')'
-        ).run(userId, `Redeemed from ${assetName}`, amt);
-
-        if (existing.current_value === amt) {
-          db.prepare('DELETE FROM portfolio_holdings WHERE id = ?').run(existing.id);
-        } else {
-          db.prepare('UPDATE portfolio_holdings SET current_value = current_value - ?, invested_value = invested_value - ? WHERE id = ?').run(amt, amt, existing.id);
-        }
-        console.log(`[Banking Action] Sold asset ${assetName} for ₹${amt}`);
-        return { success: true, message: `Redeemed ₹${amt.toLocaleString('en-IN')} from ${assetName} successfully.` };
-      }
-
+      case 'transfer':
+        return BankingService.transferMoney(userId, action.amount, action.recipient, db);
+      case 'pay_bill':
+        return BankingService.payBill(userId, action.amount, action.recipient, db);
+      case 'pay_emi':
+        return BankingService.payEMI(userId, action.amount, action.recipient, db);
+      case 'freeze_card':
+        return BankingService.freezeCard(userId, db);
+      case 'unfreeze_card':
+        return BankingService.unfreezeCard(userId, db);
+      case 'block_card':
+        return BankingService.blockCard(userId, db);
+      case 'open_fd':
+        return BankingService.openFD(userId, action.amount, action.durationMonths, db);
+      case 'buy_asset':
+        return PortfolioService.buyAsset(userId, action.assetName, action.amount, 'Equity', db);
+      case 'sell_asset':
+        return PortfolioService.sellAsset(userId, action.assetName, action.amount, db);
       default:
         return null;
     }
@@ -332,44 +244,32 @@ router.post('/chat', async (req, res) => {
       } else {
         try {
           if (action.type === 'create') {
-            db.prepare(
-              'INSERT INTO goals (user_id, goal_name, target_amount, current_saved, target_date) VALUES (?, ?, ?, ?, ?)'
-            ).run(userId, action.goalName, Number(action.targetAmount), Number(action.currentSaved || 0), action.targetDate);
+            GoalService.createGoal(userId, action, db);
             actionExecuted = { type: 'create', goalName: action.goalName };
             goalsUpdated = true;
           } else if (action.type === 'update') {
-            const existing = db.prepare('SELECT * FROM goals WHERE id = ?').get(action.goalId);
-            db.prepare(`
-              UPDATE goals 
-              SET goal_name = ?, target_amount = ?, current_saved = ?, target_date = ? 
-              WHERE id = ?
-            `).run(
-              action.goalName !== undefined ? action.goalName : existing.goal_name,
-              action.targetAmount !== undefined ? Number(action.targetAmount) : existing.target_amount,
-              action.currentSaved !== undefined ? Number(action.currentSaved) : existing.current_saved,
-              action.targetDate !== undefined ? action.targetDate : existing.target_date,
-              action.goalId
-            );
+            GoalService.updateGoal(userId, action.goalId, action, db);
             actionExecuted = { type: 'update', goalId: action.goalId };
             goalsUpdated = true;
           } else if (action.type === 'delete') {
-            db.prepare('DELETE FROM goals WHERE id = ?').run(action.goalId);
+            GoalService.deleteGoal(userId, action.goalId, db);
             actionExecuted = { type: 'delete', goalId: action.goalId };
             goalsUpdated = true;
           } else if (action.type === 'complete') {
-            db.prepare('UPDATE goals SET current_saved = target_amount WHERE id = ?').run(action.goalId);
+            const existing = db.prepare('SELECT target_amount FROM goals WHERE id = ?').get(action.goalId);
+            GoalService.updateGoal(userId, action.goalId, { status: 'Completed', currentSaved: existing?.target_amount || 0 }, db);
             actionExecuted = { type: 'complete', goalId: action.goalId };
             goalsUpdated = true;
           } else if (action.type === 'pause') {
-            db.prepare("UPDATE goals SET status = 'Paused' WHERE id = ?").run(action.goalId);
+            GoalService.updateGoal(userId, action.goalId, { status: 'Paused' }, db);
             actionExecuted = { type: 'pause', goalId: action.goalId };
             goalsUpdated = true;
           } else if (action.type === 'resume' || action.type === 'restore') {
-            db.prepare("UPDATE goals SET status = 'Active' WHERE id = ?").run(action.goalId);
+            GoalService.updateGoal(userId, action.goalId, { status: 'Active' }, db);
             actionExecuted = { type: 'resume', goalId: action.goalId };
             goalsUpdated = true;
           } else if (action.type === 'archive') {
-            db.prepare("UPDATE goals SET status = 'Archived' WHERE id = ?").run(action.goalId);
+            GoalService.updateGoal(userId, action.goalId, { status: 'Archived' }, db);
             actionExecuted = { type: 'archive', goalId: action.goalId };
             goalsUpdated = true;
           }
