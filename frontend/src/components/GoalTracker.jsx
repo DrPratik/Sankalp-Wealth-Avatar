@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Target, TrendingUp, AlertCircle, PartyPopper, Plus, Trash2, Edit3, Check, X, Coins } from 'lucide-react';
+import { Target, TrendingUp, AlertCircle, PartyPopper, Plus, Trash2, Edit3, Check, X, Coins, Pause, Play } from 'lucide-react';
 import { apiUrl } from '../api';
 
 export default function GoalTracker({ userId }) {
@@ -141,6 +141,25 @@ export default function GoalTracker({ userId }) {
     }
   };
 
+  const handleTogglePauseGoal = async (goal) => {
+    try {
+      const nextStatus = goal.status === 'Paused' ? 'Active' : 'Paused';
+      const res = await fetch(apiUrl(`/goals/${goal.id}`), {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          status: nextStatus
+        })
+      });
+
+      if (res.ok) {
+        fetchGoals();
+      }
+    } catch (err) {
+      console.error('Failed to toggle goal status:', err);
+    }
+  };
+
   if (loading && goals.length === 0) {
     return (
       <div className="goals-screen" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
@@ -257,23 +276,34 @@ export default function GoalTracker({ userId }) {
       ) : (
         goals.map((goal) => {
           const isEditing = editingGoalId === goal.id;
-          const progressColor = goal.progressPct >= 75 ? '#10B981'
+          const isPaused = goal.status === 'Paused';
+          const progressColor = isPaused ? '#94A3B8'
+            : goal.progressPct >= 75 ? '#10B981'
             : goal.progressPct >= 50 ? '#F59E0B'
             : goal.progressPct >= 25 ? '#3B82F6'
             : '#EF4444';
 
-          const statusIcon = goal.isMilestoneHit
+          const statusIcon = isPaused
+            ? <Pause size={16} style={{ color: '#94A3B8' }} />
+            : goal.isMilestoneHit
             ? <PartyPopper size={16} style={{ color: '#10B981' }} />
             : goal.isOnTrack
             ? <TrendingUp size={16} style={{ color: '#10B981' }} />
             : <AlertCircle size={16} style={{ color: '#F59E0B' }} />;
 
           return (
-            <div key={goal.id} className="goal-card" style={{ position: 'relative' }}>
+            <div key={goal.id} className="goal-card" style={{ position: 'relative', opacity: isPaused ? 0.78 : 1, transition: 'all 0.2s ease', borderLeft: isPaused ? '4px solid #94A3B8' : '4px solid var(--color-primary)' }}>
               
-              {/* Card Actions (Edit/Delete) */}
+              {/* Card Actions (Edit/Pause/Delete) */}
               {!isEditing && (
-                <div style={{ position: 'absolute', top: '12px', right: '12px', display: 'flex', gap: '6px' }}>
+                <div style={{ position: 'absolute', top: '12px', right: '12px', display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <button 
+                    onClick={() => handleTogglePauseGoal(goal)} 
+                    style={{ background: 'none', border: 'none', color: isPaused ? '#10B981' : '#F59E0B', cursor: 'pointer', padding: '2px', display: 'flex', alignItems: 'center' }} 
+                    title={isPaused ? "Resume Goal" : "Pause Goal"}
+                  >
+                    {isPaused ? <Play size={14} /> : <Pause size={14} />}
+                  </button>
                   <button onClick={() => handleStartEdit(goal)} style={{ background: 'none', border: 'none', color: 'var(--color-text-secondary)', cursor: 'pointer', padding: '2px' }} title="Edit Goal">
                     <Edit3 size={14} />
                   </button>
@@ -341,19 +371,26 @@ export default function GoalTracker({ userId }) {
                   <div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px', paddingRight: '48px' }}>
                       {statusIcon}
-                      <h3 style={{ fontSize: '0.95rem', fontWeight: 600 }}>{goal.goalName}</h3>
+                      <h3 style={{ fontSize: '0.95rem', fontWeight: 600, display: 'flex', alignItems: 'center' }}>
+                        {goal.goalName}
+                        {isPaused && (
+                          <span style={{ fontSize: '0.62rem', background: '#FEF3C7', color: '#D97706', padding: '2px 6px', borderRadius: '4px', marginLeft: '6px', fontWeight: 600 }}>
+                            Paused
+                          </span>
+                        )}
+                      </h3>
                     </div>
                     <p style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>
                       Target by {new Date(goal.targetDate).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })}
-                      {' · '}{goal.monthsRemaining} months left
+                      {!isPaused && ` · ${goal.monthsRemaining} months left`}
                     </p>
                   </div>
 
                   {/* Progress bar */}
                   <div className="goal-progress-bar" style={{ marginTop: '14px' }}>
                     <div
-                      className="goal-progress-fill"
-                      style={{ width: `${Math.min(goal.progressPct, 100)}%`, background: progressColor }}
+                       className="goal-progress-fill"
+                       style={{ width: `${Math.min(goal.progressPct, 100)}%`, background: progressColor }}
                     />
                   </div>
 
@@ -364,7 +401,7 @@ export default function GoalTracker({ userId }) {
                   </div>
 
                   {/* Quick Save Buttons */}
-                  {goal.progressPct < 100 && (
+                  {goal.progressPct < 100 && !isPaused && (
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
                       <span style={{ fontSize: '0.68rem', color: 'var(--color-text-secondary)', display: 'flex', alignItems: 'center', gap: '3px' }}>
                         <Coins size={10} /> Quick Add:
@@ -381,12 +418,12 @@ export default function GoalTracker({ userId }) {
                     </div>
                   )}
 
-                  {goal.monthlyRequired > 0 && goal.progressPct < 100 && (
+                  {goal.recommendation && (
                     <div style={{
                       marginTop: '8px', padding: '6px 10px', borderRadius: '8px',
-                      background: 'var(--color-surface)', fontSize: '0.72rem', color: 'var(--color-text-secondary)'
+                      background: isPaused ? '#F1F5F9' : 'var(--color-surface)', fontSize: '0.72rem', color: 'var(--color-text-secondary)'
                     }}>
-                      💡 Save ₹{goal.monthlyRequired.toLocaleString('en-IN')}/month to stay on track
+                      💡 {goal.recommendation}
                     </div>
                   )}
 

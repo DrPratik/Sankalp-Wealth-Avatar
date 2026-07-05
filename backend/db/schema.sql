@@ -8,7 +8,8 @@ CREATE TABLE IF NOT EXISTS users (
   monthly_income REAL NOT NULL,
   risk_profile TEXT NOT NULL CHECK(risk_profile IN ('Conservative', 'Moderate', 'Aggressive')),
   city TEXT NOT NULL,
-  savings_balance REAL NOT NULL DEFAULT 0
+  card_status TEXT NOT NULL DEFAULT 'Active',
+  savings_balance REAL NOT NULL DEFAULT 150000
 );
 
 CREATE TABLE IF NOT EXISTS portfolio_holdings (
@@ -39,6 +40,7 @@ CREATE TABLE IF NOT EXISTS goals (
   target_amount REAL NOT NULL,
   current_saved REAL NOT NULL,
   target_date TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'Active',
   FOREIGN KEY (user_id) REFERENCES users(id)
 );
 

@@ -104,7 +104,7 @@ export default function AvatarChat({ userId, conversationSummary, setConversatio
       }
 
       setGoalAction(data.goalAction || null);
-      if (data.goalsUpdated && onGoalsUpdated) {
+      if ((data.goalsUpdated || data.balanceUpdated || data.portfolioUpdated) && onGoalsUpdated) {
         onGoalsUpdated();
       }
       setIsLoading(false);

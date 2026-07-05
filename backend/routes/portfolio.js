@@ -93,7 +93,7 @@ router.post('/goals', (req, res) => {
 router.put('/goals/:goalId', (req, res) => {
   try {
     const goalId = parseInt(req.params.goalId);
-    const { goalName, targetAmount, currentSaved, targetDate } = req.body;
+    const { goalName, targetAmount, currentSaved, targetDate, status } = req.body;
     const db = req.app.locals.db;
 
     const existing = db.prepare('SELECT * FROM goals WHERE id = ?').get(goalId);
@@ -103,13 +103,14 @@ router.put('/goals/:goalId', (req, res) => {
 
     db.prepare(`
       UPDATE goals 
-      SET goal_name = ?, target_amount = ?, current_saved = ?, target_date = ? 
+      SET goal_name = ?, target_amount = ?, current_saved = ?, target_date = ?, status = ?
       WHERE id = ?
     `).run(
       goalName !== undefined ? goalName : existing.goal_name,
       targetAmount !== undefined ? Number(targetAmount) : existing.target_amount,
       currentSaved !== undefined ? Number(currentSaved) : existing.current_saved,
       targetDate !== undefined ? targetDate : existing.target_date,
+      status !== undefined ? status : (existing.status || 'Active'),
       goalId
     );
 

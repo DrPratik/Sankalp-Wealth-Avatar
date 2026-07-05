@@ -193,6 +193,7 @@ function getSIPStatus(userId, db) {
  */
 function getGoalProgress(userId, db) {
   const goals = db.prepare('SELECT * FROM goals WHERE user_id = ?').all(userId);
+  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(userId);
 
   return goals.map(goal => {
     const progressPct = goal.target_amount > 0 
@@ -204,7 +205,36 @@ function getGoalProgress(userId, db) {
     const targetDate = new Date(goal.target_date);
     const monthsRemaining = Math.max(1, (targetDate - now) / (1000 * 60 * 60 * 24 * 30));
     const amountRemaining = goal.target_amount - goal.current_saved;
-    const monthlyRequired = amountRemaining > 0 ? Math.round(amountRemaining / monthsRemaining) : 0;
+    const isPaused = goal.status === 'Paused';
+    
+    // If paused, monthly required contribution is 0 for forecasting
+    const monthlyRequired = (amountRemaining > 0 && !isPaused) ? Math.round(amountRemaining / monthsRemaining) : 0;
+
+    // Enhanced properties for Goal Health Analysis
+    const surplus = user ? (user.monthly_income * 0.4) : 25000;
+    let completionProbability = isPaused ? 'Low' : 'High';
+    if (!isPaused) {
+      if (monthlyRequired > surplus * 0.75) {
+        completionProbability = 'Low';
+      } else if (monthlyRequired > surplus * 0.35) {
+        completionProbability = 'Medium';
+      }
+    }
+
+    const projectedMonths = (monthlyRequired > 0 && !isPaused) ? (amountRemaining / monthlyRequired) : 0;
+    const projectedDate = new Date(now.getFullYear(), now.getMonth() + Math.ceil(projectedMonths), now.getDate());
+    
+    let recommendation = isPaused 
+      ? 'Goal is currently paused. Resume saving to stay on track.'
+      : 'On track. Keep saving consistently!';
+      
+    if (!isPaused) {
+      if (completionProbability === 'Low') {
+        recommendation = `Shortfall expected. Increase monthly saving by ₹${Math.round(monthlyRequired * 0.2).toLocaleString('en-IN')} or delay target date by 6 months.`;
+      } else if (completionProbability === 'Medium') {
+        recommendation = `Tight margin. Try setting up an automatic SIP to auto-save ₹${monthlyRequired.toLocaleString('en-IN')}/month.`;
+      }
+    }
 
     return {
       id: goal.id,
@@ -212,11 +242,16 @@ function getGoalProgress(userId, db) {
       targetAmount: goal.target_amount,
       currentSaved: goal.current_saved,
       targetDate: goal.target_date,
+      status: goal.status || 'Active',
       progressPct,
       monthsRemaining: Math.round(monthsRemaining),
       monthlyRequired,
-      isOnTrack: progressPct >= (100 - (monthsRemaining / (monthsRemaining + 1) * 100)), // Simplified heuristic
-      isMilestoneHit: progressPct >= 50
+      isOnTrack: !isPaused && (progressPct >= (100 - (monthsRemaining / (monthsRemaining + 1) * 100))),
+      isMilestoneHit: progressPct >= 50,
+      completionProbability,
+      projectedCompletionDate: isPaused ? 'N/A' : projectedDate.toISOString().split('T')[0],
+      fundingSource: 'Savings Account',
+      recommendation
     };
   });
 }
@@ -396,6 +431,65 @@ function getIdleBalanceDays(userId, db) {
   return { balance: Math.round(balance), idleDays };
 }
 
+/**
+ * Predict future cash position for next 30 days.
+ */
+function getCashFlowForecast(userId, db) {
+  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(userId);
+  if (!user) return { currentBalance: 0, projectedBalance: 0, scheduledOutflows: 0, surplus: 0 };
+
+  const currentBalance = user.savings_balance;
+  
+  // Calculate average spending
+  const spendingSummary = getSpendingSummary(userId, db);
+  const avgSpending = spendingSummary.totalCurrentMonth;
+
+  // Expected inflows
+  const salary = user.monthly_income;
+  
+  // Active SIPs Outflows
+  const sips = db.prepare("SELECT SUM(ABS(amount)) as total FROM transactions WHERE user_id = ? AND category = 'SIP'").get(userId);
+  const sipOutflow = sips?.total || 0;
+
+  const scheduledOutflows = Math.round(sipOutflow + (avgSpending * 0.3));
+  const projectedBalance = Math.round(currentBalance + salary - avgSpending - sipOutflow);
+
+  return {
+    currentBalance: Math.round(currentBalance),
+    projectedBalance: Math.max(0, projectedBalance),
+    scheduledOutflows,
+    surplus: Math.max(0, salary - avgSpending - sipOutflow)
+  };
+}
+
+/**
+ * Detect conflicts in goals planning against surplus cash flow.
+ */
+function getGoalConflicts(userId, db) {
+  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(userId);
+  const goals = getGoalProgress(userId, db);
+  
+  if (!user || goals.length === 0) return { hasConflict: false, totalMonthlyRequired: 0, surplusIncome: 0, conflicts: [] };
+
+  const forecast = getCashFlowForecast(userId, db);
+  const surplusIncome = forecast.surplus;
+
+  const totalMonthlyRequired = goals.reduce((sum, g) => sum + g.monthlyRequired, 0);
+  const hasConflict = totalMonthlyRequired > surplusIncome;
+
+  const conflicts = [];
+  if (hasConflict) {
+    conflicts.push(`Your active goals require a total saving of ₹${totalMonthlyRequired.toLocaleString('en-IN')}/month, which exceeds your monthly surplus income of ₹${Math.round(surplusIncome).toLocaleString('en-IN')}. Consider prioritizing or extending the target dates.`);
+  }
+
+  return {
+    hasConflict,
+    totalMonthlyRequired,
+    surplusIncome: Math.round(surplusIncome),
+    conflicts
+  };
+}
+
 module.exports = {
   getPortfolioSummary,
   getSpendingSummary,
@@ -408,5 +502,7 @@ module.exports = {
   getWellnessScore,
   getNextBestActions,
   getRiskAdjustedRecommendations,
-  getMonthChangeAnalysis
+  getMonthChangeAnalysis,
+  getCashFlowForecast,
+  getGoalConflicts
 };

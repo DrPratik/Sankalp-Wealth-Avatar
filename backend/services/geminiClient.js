@@ -33,17 +33,19 @@ function getModel() {
 }
 
 // ── System Instruction ──
-const SYSTEM_INSTRUCTION = `You are Sankalp, a friendly and trustworthy AI wealth advisory avatar for an Indian bank's mobile app. You help customers understand their spending, savings balance, and investments in simple, warm, conversational language. You are NOT a licensed financial advisor and must never guarantee returns or give definitive "buy/sell" instructions — only educational guidance and clearly-labeled suggestions.
+const SYSTEM_INSTRUCTION = `You are Sankalp, a friendly and trustworthy AI relationship manager and wealth advisor for an Indian bank's mobile app. You act as a personal banker, budgeting coach, and portfolio analyst. Help customers understand their spending patterns, savings balances, investments, and goals in simple, warm, conversational language. You are NOT a licensed financial advisor — provide educational guidance and suggestions, and never guarantee returns.
 
 Respond in the user's preferred language. If the user prefers Hindi, reply in Hindi; if Marathi, reply in Marathi; otherwise reply in English. Keep responses under 80 words unless the user asks for detail.
 
-If the user wants to manage their financial goals (create, update, delete, or complete), identify their intent and parameters from natural language variations, and output a structured "goal_action" object in the JSON response to synchronize with the database and UI.
+If the user wants to manage their financial goals (create, update, delete, complete, archive, restore, pause, resume, prioritize), output a structured "goal_action" object in the JSON response.
 
-Goals Management Rules:
-1. "create" goal: Name must not be empty. Target amount must be positive. Target date must be in the future (YYYY-MM-DD format).
-2. "update" goal: Map the request to the correct Goal ID from the active goals list. You can update name, targetAmount, currentSaved (adding or setting funds), or targetDate.
-3. "delete" goal: Map the request to the correct Goal ID. If it is a critical goal (e.g. containing "emergency", "retirement", "medical") and the user hasn't explicitly confirmed their absolute decision yet in the conversation summary/current message, warn them of the implications first and ask: "Are you sure you want to delete this goal?" Do NOT output the goal_action yet. If they confirm (e.g., say "yes", "confirm", "do it"), output the delete action. If it is not a critical goal, delete it directly without asking for confirmation.
-4. "complete" goal: Mark a goal as completed (e.g., set currentSaved equal to targetAmount, or map to a complete action).
+If the user wants to execute a banking operation (transfer money, pay bills, pay EMIs, freeze/unfreeze/block cards, open/close FDs/RDs, buy/sell assets like mutual funds/stocks), output a structured "banking_action" object.
+
+Banking Operations Rules:
+1. Critical actions (transfer, pay_bill, pay_emi, freeze_card, block_card, open_fd, buy_asset, sell_asset) REQUIRE confirmation.
+2. If the user requests a critical action but hasn't confirmed it yet: Set "confirmRequired" to true, "isConfirmed" to false, explain the action/consequences, and ask the user for confirmation (e.g. "Should I proceed with transferring ₹5,000 to Rohan?"). Do NOT execute it yet.
+3. If the user has explicitly confirmed the action (e.g., says "yes", "proceed", "do it", or confirms a previous suggestion): Set "confirmRequired" to false, "isConfirmed" to true, and explain that the action is being executed.
+4. If an action may negatively affect the user (e.g., deleting a critical goal like Emergency Fund, or spending beyond their budget), warn them of the implications ONCE, but if they insist/confirm, proceed.
 
 Respond ONLY in valid JSON matching this schema, with no markdown formatting, no code fences, no extra text:
 
@@ -53,21 +55,30 @@ Respond ONLY in valid JSON matching this schema, with no markdown formatting, no
   "suggested_action": "string or null - a short actionable next step if relevant",
   "compliance_note": "string or null - a short disclaimer if the reply touches on investment products",
   "goal_action": {
-    "type": "string or null - one of: 'create', 'update', 'delete', 'complete'",
-    "goalId": "number or null - required for update, delete, complete",
+    "type": "string or null - one of: 'create', 'update', 'delete', 'complete', 'archive', 'restore', 'pause', 'resume', 'prioritize'",
+    "goalId": "number or null - ID from active goals list",
     "goalName": "string or null - name of the goal",
-    "targetAmount": "number or null - target amount",
-    "currentSaved": "number or null - current saved amount",
-    "targetDate": "string (YYYY-MM-DD) or null - target date"
+    "targetAmount": "number or null",
+    "currentSaved": "number or null",
+    "targetDate": "string (YYYY-MM-DD) or null"
+  },
+  "banking_action": {
+    "type": "string or null - one of: 'transfer', 'pay_bill', 'pay_emi', 'freeze_card', 'unfreeze_card', 'block_card', 'open_fd', 'buy_asset', 'sell_asset'",
+    "amount": "number or null",
+    "recipient": "string or null - name/account for transfer or bill description",
+    "assetName": "string or null - name of mutual fund, stock, or FD",
+    "durationMonths": "number or null - duration of FD/RD",
+    "confirmRequired": "boolean - true if waiting for user confirmation",
+    "isConfirmed": "boolean - true if the user confirmed execution"
   }
 }`;
 
 /**
  * Build the user-turn prompt for a chat interaction.
  */
-function buildChatPrompt({ user, portfolioSummary, spendingSummary, goals, complianceText, conversationSummary, userMessage, preferredLanguage = 'en', dashboardInsights = [], wellnessScore = null, nextBestActions = [], riskAdjustedRecommendations = [], monthChangeAnalysis = [] }) {
+function buildChatPrompt({ user, portfolioSummary, spendingSummary, goals, complianceText, conversationSummary, userMessage, preferredLanguage = 'en', dashboardInsights = [], wellnessScore = null, nextBestActions = [], riskAdjustedRecommendations = [], monthChangeAnalysis = [], cashFlowForecast = null, goalConflicts = null }) {
   const goalLines = goals.map(g =>
-    `Goal ID: ${g.id} | Name: ${g.goalName} | Saved: ₹${g.currentSaved} | Target: ₹${g.targetAmount} | Progress: ${g.progressPct}% | Target Date: ${g.targetDate}`
+    `Goal ID: ${g.id} | Name: ${g.goalName} | Saved: ₹${g.currentSaved} | Target: ₹${g.targetAmount} | Progress: ${g.progressPct}% | Target Date: ${g.targetDate} | Health Status: ${g.completionProbability} Probability (${g.recommendation})`
   ).join('\n');
 
   const spendingLines = spendingSummary.categories.slice(0, 3).map(c =>
@@ -77,29 +88,40 @@ function buildChatPrompt({ user, portfolioSummary, spendingSummary, goals, compl
   const sipLine = spendingSummary.sipStatus?.message || '';
   const languageLabel = preferredLanguage === 'hi' ? 'Hindi' : preferredLanguage === 'mr' ? 'Marathi' : 'English';
 
-  return `User profile: ${user.name}, age ${user.age}, risk profile: ${user.risk_profile}, monthly income: ₹${user.monthly_income.toLocaleString('en-IN')}, savings account balance: ₹${(user.savings_balance || 0).toLocaleString('en-IN')}
+  const forecastText = cashFlowForecast 
+    ? `Current Balance: ₹${cashFlowForecast.currentBalance.toLocaleString('en-IN')}, Projected Balance (End of Month): ₹${cashFlowForecast.projectedBalance.toLocaleString('en-IN')}, Scheduled Outflows: ₹${cashFlowForecast.scheduledOutflows.toLocaleString('en-IN')}, Monthly Surplus: ₹${cashFlowForecast.surplus.toLocaleString('en-IN')}`
+    : 'Not available';
 
+  const conflictsText = goalConflicts && goalConflicts.hasConflict
+    ? `CONFLICT DETECTED: Total monthly goal required saving ₹${goalConflicts.totalMonthlyRequired.toLocaleString('en-IN')} exceeds surplus income of ₹${goalConflicts.surplusIncome.toLocaleString('en-IN')}. conflicts: ${goalConflicts.conflicts.join(' ')}`
+    : 'No active goal planning conflicts.';
+
+  return `User profile: ${user.name}, age ${user.age}, risk profile: ${user.risk_profile}, monthly income: ₹${user.monthly_income.toLocaleString('en-IN')}, savings account balance: ₹${(user.savings_balance || 0).toLocaleString('en-IN')}, debit card status: ${user.card_status || 'Active'}
+ 
 Portfolio summary: Total value ₹${portfolioSummary.totalValue.toLocaleString('en-IN')}, allocated ${portfolioSummary.allocationPct.Equity || 0}% equity / ${portfolioSummary.allocationPct.Debt || 0}% debt / ${portfolioSummary.allocationPct.Gold || 0}% gold / ${portfolioSummary.allocationPct.Hybrid || 0}% hybrid. Overall gain: ${portfolioSummary.gainLossPct}%. Risk alignment: ${portfolioSummary.riskAlignment}.
-
+ 
 Recent spending pattern: ${spendingLines}. ${sipLine}
-
+ 
 Active goals: ${goalLines || 'None'}
-
+ 
+Cash flow forecast: ${forecastText}
+Goal planning check: ${conflictsText}
+ 
 Dashboard insights: ${dashboardInsights.map(i => `${i.title}: ${i.value} (${i.hint})`).join('; ') || 'None'}
-
+ 
 Financial wellness score: ${wellnessScore ? `${wellnessScore.score}/100 (${wellnessScore.label})` : 'Not available'}
 Next best actions: ${nextBestActions.map(a => `${a.title}: ${a.detail}`).join('; ') || 'None'}
 Risk-adjusted recommendations: ${riskAdjustedRecommendations.map(r => `${r.title}: ${r.detail}`).join('; ') || 'None'}
 What changed from last month: ${monthChangeAnalysis.map(c => `${c.title}: ${c.detail}`).join('; ') || 'None'}
-
+ 
 Conversation so far (summary): ${conversationSummary || 'This is the beginning of the conversation.'}
-
+ 
 Compliance-approved facts only (do not contradict): ${complianceText}
-
+ 
 User's current message: "${userMessage}"
-
+ 
 Preferred answer language: ${languageLabel}
-
+ 
 Respond as Sankalp following the system instruction JSON schema.`;
 }
 

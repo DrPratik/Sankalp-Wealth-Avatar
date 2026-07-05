@@ -70,7 +70,7 @@ function validateGoalAction(action, userId, db) {
     }
   }
 
-  if (action.type === 'delete' || action.type === 'complete') {
+  if (['delete', 'complete', 'pause', 'resume', 'archive', 'restore'].includes(action.type)) {
     if (!action.goalId) {
       return 'Goal ID is required.';
     }
@@ -81,6 +81,129 @@ function validateGoalAction(action, userId, db) {
   }
 
   return null; // Valid
+}
+
+function executeBankingAction(action, userId, db) {
+  if (!action || !action.type) return null;
+
+  try {
+    switch (action.type) {
+      case 'transfer': {
+        const amt = Number(action.amount);
+        const recipient = action.recipient || 'Recipient';
+        db.prepare('UPDATE users SET savings_balance = savings_balance - ? WHERE id = ?').run(amt, userId);
+        db.prepare(
+          'INSERT INTO transactions (user_id, date, description, amount, category) VALUES (?, date(\'now\'), ?, ?, \'Transfer\')'
+        ).run(userId, `Transfer to ${recipient}`, -amt);
+        console.log(`[Banking Action] Executed transfer of ₹${amt} to ${recipient}`);
+        return { success: true, message: `Transferred ₹${amt.toLocaleString('en-IN')} to ${recipient} successfully.` };
+      }
+      
+      case 'pay_bill': {
+        const amt = Number(action.amount);
+        const recipient = action.recipient || 'Credit Card Bill';
+        db.prepare('UPDATE users SET savings_balance = savings_balance - ? WHERE id = ?').run(amt, userId);
+        db.prepare(
+          'INSERT INTO transactions (user_id, date, description, amount, category) VALUES (?, date(\'now\'), ?, ?, \'Bills\')'
+        ).run(userId, `Payment: ${recipient}`, -amt);
+        console.log(`[Banking Action] Executed bill payment of ₹${amt} for ${recipient}`);
+        return { success: true, message: `Paid ₹${amt.toLocaleString('en-IN')} for ${recipient} successfully.` };
+      }
+
+      case 'pay_emi': {
+        const amt = Number(action.amount);
+        const recipient = action.recipient || 'Loan EMI';
+        db.prepare('UPDATE users SET savings_balance = savings_balance - ? WHERE id = ?').run(amt, userId);
+        db.prepare(
+          'INSERT INTO transactions (user_id, date, description, amount, category) VALUES (?, date(\'now\'), ?, ?, \'EMI\')'
+        ).run(userId, `EMI Payment: ${recipient}`, -amt);
+        console.log(`[Banking Action] Executed EMI payment of ₹${amt}`);
+        return { success: true, message: `Paid EMI of ₹${amt.toLocaleString('en-IN')} successfully.` };
+      }
+
+      case 'freeze_card': {
+        db.prepare("UPDATE users SET card_status = 'Frozen' WHERE id = ?").run(userId);
+        console.log(`[Banking Action] Card frozen for user ${userId}`);
+        return { success: true, message: 'Your debit card has been frozen successfully.' };
+      }
+
+      case 'unfreeze_card': {
+        db.prepare("UPDATE users SET card_status = 'Active' WHERE id = ?").run(userId);
+        console.log(`[Banking Action] Card unfrozen for user ${userId}`);
+        return { success: true, message: 'Your debit card has been unfrozen successfully.' };
+      }
+
+      case 'block_card': {
+        db.prepare("UPDATE users SET card_status = 'Blocked' WHERE id = ?").run(userId);
+        console.log(`[Banking Action] Card blocked for user ${userId}`);
+        return { success: true, message: 'Your debit card has been permanently blocked. A replacement has been ordered.' };
+      }
+
+      case 'open_fd': {
+        const amt = Number(action.amount);
+        const duration = action.durationMonths || 12;
+        db.prepare('UPDATE users SET savings_balance = savings_balance - ? WHERE id = ?').run(amt, userId);
+        db.prepare(
+          'INSERT INTO transactions (user_id, date, description, amount, category) VALUES (?, date(\'now\'), ?, ?, \'Investment\')'
+        ).run(userId, `Opened Fixed Deposit`, -amt);
+        db.prepare(
+          'INSERT INTO portfolio_holdings (user_id, instrument_name, instrument_type, current_value, invested_value, category) VALUES (?, ?, \'FD\', ?, ?, \'Debt\')'
+        ).run(userId, `Fixed Deposit (${duration} Months)`, amt, amt);
+        console.log(`[Banking Action] Opened FD of ₹${amt} for ${duration} months`);
+        return { success: true, message: `Opened a Fixed Deposit of ₹${amt.toLocaleString('en-IN')} for ${duration} months successfully.` };
+      }
+
+      case 'buy_asset': {
+        const amt = Number(action.amount);
+        const assetName = action.assetName || 'Mutual Fund';
+        db.prepare('UPDATE users SET savings_balance = savings_balance - ? WHERE id = ?').run(amt, userId);
+        db.prepare(
+          'INSERT INTO transactions (user_id, date, description, amount, category) VALUES (?, date(\'now\'), ?, ?, \'Investment\')'
+        ).run(userId, `Invested in ${assetName}`, -amt);
+        
+        // Update portfolio holdings
+        const existing = db.prepare('SELECT id FROM portfolio_holdings WHERE user_id = ? AND instrument_name = ?').get(userId, assetName);
+        if (existing) {
+          db.prepare('UPDATE portfolio_holdings SET current_value = current_value + ?, invested_value = invested_value + ? WHERE id = ?').run(amt, amt, existing.id);
+        } else {
+          db.prepare(
+            'INSERT INTO portfolio_holdings (user_id, instrument_name, instrument_type, current_value, invested_value, category) VALUES (?, ?, \'Mutual Fund\', ?, ?, \'Equity\')'
+          ).run(userId, assetName, amt, amt);
+        }
+        console.log(`[Banking Action] Bought asset ${assetName} for ₹${amt}`);
+        return { success: true, message: `Invested ₹${amt.toLocaleString('en-IN')} in ${assetName} successfully.` };
+      }
+
+      case 'sell_asset': {
+        const amt = Number(action.amount);
+        const assetName = action.assetName || 'Mutual Fund';
+        
+        const existing = db.prepare('SELECT * FROM portfolio_holdings WHERE user_id = ? AND instrument_name = ?').get(userId, assetName);
+        if (!existing || existing.current_value < amt) {
+          return { success: false, error: 'Insufficient holdings to sell.' };
+        }
+
+        db.prepare('UPDATE users SET savings_balance = savings_balance + ? WHERE id = ?').run(amt, userId);
+        db.prepare(
+          'INSERT INTO transactions (user_id, date, description, amount, category) VALUES (?, date(\'now\'), ?, ?, \'Investment\')'
+        ).run(userId, `Redeemed from ${assetName}`, amt);
+
+        if (existing.current_value === amt) {
+          db.prepare('DELETE FROM portfolio_holdings WHERE id = ?').run(existing.id);
+        } else {
+          db.prepare('UPDATE portfolio_holdings SET current_value = current_value - ?, invested_value = invested_value - ? WHERE id = ?').run(amt, amt, existing.id);
+        }
+        console.log(`[Banking Action] Sold asset ${assetName} for ₹${amt}`);
+        return { success: true, message: `Redeemed ₹${amt.toLocaleString('en-IN')} from ${assetName} successfully.` };
+      }
+
+      default:
+        return null;
+    }
+  } catch (err) {
+    console.error('[Banking Action] Execution failed:', err);
+    return { success: false, error: err.message };
+  }
 }
 
 function buildAdvisorCards(portfolioSummary, spendingSummary, goals) {
@@ -161,6 +284,8 @@ router.post('/chat', async (req, res) => {
     const nextBestActions = ruleEngine.getNextBestActions ? ruleEngine.getNextBestActions(userId, db) : [];
     const riskAdjustedRecommendations = ruleEngine.getRiskAdjustedRecommendations ? ruleEngine.getRiskAdjustedRecommendations(userId, db) : [];
     const monthChangeAnalysis = ruleEngine.getMonthChangeAnalysis ? ruleEngine.getMonthChangeAnalysis(userId, db) : [];
+    const cashFlowForecast = ruleEngine.getCashFlowForecast ? ruleEngine.getCashFlowForecast(userId, db) : null;
+    const goalConflicts = ruleEngine.getGoalConflicts ? ruleEngine.getGoalConflicts(userId, db) : null;
 
     // 3. Generate compliance constraints
     const complianceText = complianceGuard.generateComplianceConstraints(user, portfolioSummary, db);
@@ -180,28 +305,31 @@ router.post('/chat', async (req, res) => {
       wellnessScore,
       nextBestActions,
       riskAdjustedRecommendations,
-      monthChangeAnalysis
+      monthChangeAnalysis,
+      cashFlowForecast,
+      goalConflicts
     }, apiUsage);
 
     // 5. Post-process for compliance
     let processedReply = complianceGuard.postProcessReply(rawReply);
 
-    // 6. DB Sync (Process Goal Action)
+    // 6. DB Sync (Process Goal Action & Banking Action)
     let goalsUpdated = false;
+    let balanceUpdated = false;
+    let portfolioUpdated = false;
     let actionExecuted = null;
 
+    // 6a. Process Goal Action
     if (processedReply.goal_action && processedReply.goal_action.type) {
       const action = processedReply.goal_action;
       console.log(`[NLP Goals] Intent detected: ${action.type} for user ${userId}`);
 
-      // Validate Action
       const validationError = validateGoalAction(action, userId, db);
       if (validationError) {
         console.warn(`[NLP Goals] Validation failed: ${validationError}`);
         processedReply.reply = `I understand you want to ${action.type} a goal, but there was a validation issue: ${validationError}`;
         processedReply.suggested_action = null;
       } else {
-        // Execute Action
         try {
           if (action.type === 'create') {
             db.prepare(
@@ -232,10 +360,42 @@ router.post('/chat', async (req, res) => {
             db.prepare('UPDATE goals SET current_saved = target_amount WHERE id = ?').run(action.goalId);
             actionExecuted = { type: 'complete', goalId: action.goalId };
             goalsUpdated = true;
+          } else if (action.type === 'pause') {
+            db.prepare("UPDATE goals SET status = 'Paused' WHERE id = ?").run(action.goalId);
+            actionExecuted = { type: 'pause', goalId: action.goalId };
+            goalsUpdated = true;
+          } else if (action.type === 'resume' || action.type === 'restore') {
+            db.prepare("UPDATE goals SET status = 'Active' WHERE id = ?").run(action.goalId);
+            actionExecuted = { type: 'resume', goalId: action.goalId };
+            goalsUpdated = true;
+          } else if (action.type === 'archive') {
+            db.prepare("UPDATE goals SET status = 'Archived' WHERE id = ?").run(action.goalId);
+            actionExecuted = { type: 'archive', goalId: action.goalId };
+            goalsUpdated = true;
           }
         } catch (dbErr) {
           console.error('[NLP Goals] Database execution failed:', dbErr);
-          processedReply.reply = `I tried to update your goals but encountered a database error. Please try again.`;
+          processedReply.reply = `I tried to update your goals but encountered a database error.`;
+        }
+      }
+    }
+
+    // 6b. Process Banking Action
+    if (processedReply.banking_action && processedReply.banking_action.type) {
+      const bAction = processedReply.banking_action;
+      
+      if (bAction.isConfirmed && !bAction.confirmRequired) {
+        console.log(`[NLP Banking] Executing transaction: ${bAction.type} for user ${userId}`);
+        const executionResult = executeBankingAction(bAction, userId, db);
+        if (executionResult && executionResult.success) {
+          balanceUpdated = true;
+          if (bAction.type === 'open_fd' || bAction.type === 'buy_asset' || bAction.type === 'sell_asset') {
+            portfolioUpdated = true;
+          }
+          processedReply.reply = `${processedReply.reply}\n\n[System Notification: ${executionResult.message}]`;
+          actionExecuted = { type: bAction.type, amount: bAction.amount, target: bAction.recipient || bAction.assetName };
+        } else if (executionResult && !executionResult.success) {
+          processedReply.reply = `I tried to complete this transaction, but encountered an issue: ${executionResult.error}`;
         }
       }
     }
@@ -255,6 +415,8 @@ router.post('/chat', async (req, res) => {
       riskAdjustedRecommendations,
       monthChangeAnalysis,
       goalsUpdated,
+      balanceUpdated,
+      portfolioUpdated,
       actionExecuted,
       goals: refreshedGoals
     });
@@ -268,7 +430,9 @@ router.post('/chat', async (req, res) => {
       compliance_note: null,
       complianceChecked: false,
       advisorCards: [],
-      goalsUpdated: false
+      goalsUpdated: false,
+      balanceUpdated: false,
+      portfolioUpdated: false
     });
   }
 });
