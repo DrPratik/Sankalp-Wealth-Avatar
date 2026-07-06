@@ -30,7 +30,12 @@ export default function AvatarChat({ userId, conversationSummary, setConversatio
       role: 'ai',
       text: "Hi! I'm Sankalp, your AI wealth advisor. I can help with portfolio health, SIP planning, spending insights, and goal tracking. What would you like to know?",
       tone: 'encouraging',
-      complianceChecked: true
+      complianceChecked: true,
+      action_buttons: [
+        "How's my portfolio doing?",
+        "Can I afford my goal?",
+        "Analyze my spending"
+      ]
     }
   ]);
   const [input, setInput] = useState('');
@@ -56,6 +61,30 @@ export default function AvatarChat({ userId, conversationSummary, setConversatio
   useEffect(() => {
     scrollToBottom();
   }, [messages, streamingText, scrollToBottom]);
+
+  useEffect(() => {
+    // Proactively scan active nudges to personalize welcome greeting
+    fetch(apiUrl(`/nudges/${userId}`))
+      .then(res => res.json())
+      .then(data => {
+        if (data.nudges && data.nudges.length > 0) {
+          const highPriority = data.nudges.find(n => ['missed_sip', 'idle_balance', 'goal_offtrack'].includes(n.trigger_type)) || data.nudges[0];
+          setMessages(prev => {
+            const copy = [...prev];
+            if (copy.length === 1 && copy[0].role === 'ai') {
+              copy[0].text = `Hi! I'm Sankalp, your AI wealth advisor. I noticed an alert: "${highPriority.headline}". ${highPriority.body} Would you like to review this now?`;
+              copy[0].action_buttons = [
+                highPriority.cta_label || "Review Alert",
+                "How's my portfolio doing?",
+                "Can I afford my goal?"
+              ];
+            }
+            return copy;
+          });
+        }
+      })
+      .catch(err => console.error("[Welcome Nudges] Fetch error:", err));
+  }, [userId]);
 
   const handleSend = useCallback(async (textOverride = null) => {
     const textToSend = (textOverride || input).trim();
@@ -111,13 +140,30 @@ export default function AvatarChat({ userId, conversationSummary, setConversatio
       setIsStreaming(false);
       setStreamingText('');
 
+      // Contextual check to display widgets only when relevant
+      const textLower = textToSend.toLowerCase();
+      const showPortfolio = /(portfolio|allocation|balance)/.test(textLower);
+      const showWellness = /(wellness|score|health)/.test(textLower);
+      const showSpending = /(spending|expense|groceries|dining|utilities|transport|month|change|pattern)/.test(textLower);
+      const showRecommendations = /(recommend|suggest|risk)/.test(textLower);
+      const showGoalConflict = /(goal|saving|conflict|budget|afford|sip)/.test(textLower);
+
       setMessages(prev => [...prev, {
         role: 'ai',
         text: replyText,
         tone: data.tone,
         suggested_action: data.suggested_action,
         compliance_note: data.compliance_note,
-        complianceChecked: data.complianceChecked
+        action_buttons: data.action_buttons,
+        complianceChecked: data.complianceChecked,
+        // Context-aware inline rich widgets
+        dashboardInsights: showPortfolio ? (data.dashboardInsights || []) : [],
+        wellnessScore: showWellness ? (data.wellnessScore || null) : null,
+        nextBestActions: showSpending ? (data.nextBestActions || []) : [],
+        riskAdjustedRecommendations: showRecommendations ? (data.riskAdjustedRecommendations || []) : [],
+        monthChangeAnalysis: showSpending ? (data.monthChangeAnalysis || []) : [],
+        goalAction: data.goalAction || null, // Always show if action was performed
+        goalConflicts: showGoalConflict ? (data.goalConflicts || null) : null
       }]);
 
       // Update rolling conversation summary on every turn (keep the last 4 messages to preserve context)
@@ -138,8 +184,9 @@ export default function AvatarChat({ userId, conversationSummary, setConversatio
       setGoalAction(null);
       setMessages(prev => [...prev, {
         role: 'ai',
-        text: "I'm having a brief connectivity issue. Your portfolio looks steady — try asking again in a moment!",
+        text: "Sankalp AI is temporarily unavailable due to a connection issue. Please try again shortly, or select below to connect with a human relationship manager.",
         tone: 'neutral',
+        action_buttons: ["Connect to Human Support", "Try again"],
         complianceChecked: false
       }]);
     }
@@ -170,124 +217,144 @@ export default function AvatarChat({ userId, conversationSummary, setConversatio
 
       {/* Messages */}
       <div className="chat-messages">
-        {dashboardInsights.length > 0 && (
-          <div style={{ padding: '0 0 8px', display: 'grid', gap: '8px' }}>
-            {dashboardInsights.map((insight) => (
-              <div key={insight.title} style={{ border: '1px solid rgba(45, 212, 191, 0.2)', borderRadius: '12px', background: 'rgba(255,255,255,0.05)', padding: '10px 12px' }}>
-                <div style={{ fontSize: '0.74rem', color: 'var(--color-text-secondary)' }}>{insight.title}</div>
-                <div style={{ fontSize: '0.84rem', fontWeight: 700, marginTop: '2px' }}>{insight.value}</div>
-                <div style={{ fontSize: '0.7rem', color: 'var(--color-text-secondary)', marginTop: '2px' }}>{insight.hint}</div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {goalAction && (
-          <div style={{ padding: '0 0 8px' }}>
-            <div style={{ border: '1px solid rgba(45, 212, 191, 0.25)', borderRadius: '12px', background: 'rgba(45, 212, 191, 0.12)', padding: '10px 12px' }}>
-              <div style={{ fontSize: '0.74rem', fontWeight: 700 }}>
-                {goalAction.type === 'create' ? 'Goal Created' : goalAction.type === 'delete' ? 'Goal Deleted' : 'Goal Updated'}
-              </div>
-              <div style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)', marginTop: '2px' }}>
-                {goalAction.goalName || 'Goal'}
-                {goalAction.targetAmount !== undefined && goalAction.targetAmount !== null && ` • ₹${Number(goalAction.targetAmount).toLocaleString('en-IN')}`}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {wellnessScore && (
-          <div style={{ padding: '0 0 8px' }}>
-            <div style={{ border: '1px solid rgba(45, 212, 191, 0.25)', borderRadius: '14px', background: 'linear-gradient(135deg, rgba(45, 212, 191, 0.16), rgba(14, 165, 233, 0.12))', padding: '10px 12px' }}>
-              <div style={{ fontSize: '0.74rem', color: 'var(--color-text-secondary)' }}>Financial Wellness Score</div>
-              <div style={{ fontSize: '1.1rem', fontWeight: 800, marginTop: '2px' }}>{wellnessScore.score}/100</div>
-              <div style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)', marginTop: '2px' }}>{wellnessScore.label}</div>
-            </div>
-          </div>
-        )}
-
-        {nextBestActions.length > 0 && (
-          <div style={{ padding: '0 0 8px', display: 'grid', gap: '8px' }}>
-            {nextBestActions.map((action) => (
-              <div key={action.title} style={{ border: '1px solid rgba(45, 212, 191, 0.2)', borderRadius: '12px', background: 'rgba(255,255,255,0.05)', padding: '10px 12px' }}>
-                <div style={{ fontSize: '0.75rem', fontWeight: 700 }}>{action.title}</div>
-                <div style={{ fontSize: '0.7rem', color: 'var(--color-text-secondary)', marginTop: '2px' }}>{action.detail}</div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {riskAdjustedRecommendations.length > 0 && (
-          <div style={{ padding: '0 0 8px', display: 'grid', gap: '8px' }}>
-            {riskAdjustedRecommendations.map((rec) => (
-              <div key={rec.title} style={{ border: '1px solid rgba(14, 165, 233, 0.2)', borderRadius: '12px', background: 'rgba(14, 165, 233, 0.08)', padding: '10px 12px' }}>
-                <div style={{ fontSize: '0.75rem', fontWeight: 700 }}>{rec.title}</div>
-                <div style={{ fontSize: '0.7rem', color: 'var(--color-text-secondary)', marginTop: '2px' }}>{rec.detail}</div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {monthChangeAnalysis.length > 0 && (
-          <div style={{ padding: '0 0 8px', display: 'grid', gap: '8px' }}>
-            {monthChangeAnalysis.map((item) => (
-              <div key={item.title} style={{ border: '1px solid rgba(251, 191, 36, 0.2)', borderRadius: '12px', background: 'rgba(251, 191, 36, 0.08)', padding: '10px 12px' }}>
-                <div style={{ fontSize: '0.75rem', fontWeight: 700 }}>{item.title}</div>
-                <div style={{ fontSize: '0.7rem', color: 'var(--color-text-secondary)', marginTop: '2px' }}>{item.detail}</div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {advisorCards.length > 0 && (
-          <div style={{ padding: '0 0 8px', display: 'grid', gap: '8px' }}>
-            {advisorCards.map((card) => (
-              <button
-                key={card.title}
-                onClick={() => handleSend(card.prompt)}
-                disabled={isLoading || isStreaming}
-                style={{
-                  textAlign: 'left',
-                  border: '1px solid rgba(45, 212, 191, 0.28)',
-                  borderRadius: '12px',
-                  background: 'rgba(45, 212, 191, 0.08)',
-                  padding: '10px 12px',
-                  color: 'var(--color-text-primary)',
-                  cursor: 'pointer'
-                }}
-              >
-                <div style={{ fontSize: '0.78rem', fontWeight: 700 }}>{card.title}</div>
-                <div style={{ fontSize: '0.74rem', color: 'var(--color-text-secondary)', marginTop: '2px' }}>{card.value}</div>
-                <div style={{ fontSize: '0.7rem', color: 'var(--color-text-secondary)', marginTop: '4px' }}>{card.subtitle}</div>
-              </button>
-            ))}
-          </div>
-        )}
-
-        {messages.map((msg, idx) => (
-          <div key={idx}>
-            <div className={`chat-bubble-wrapper ${msg.role}`}>
-              {msg.role === 'ai' && <div className="sankalp-avatar-small" style={{ width: '26px', height: '26px', fontSize: '0.55rem' }}>S</div>}
-              <div>
-                <div className={`chat-bubble ${msg.role}`}>
-                  {msg.text}
-                </div>
-                {msg.role === 'ai' && msg.complianceChecked && (
-                  <div className="compliance-badge" title="This response was checked against your risk profile and eligibility.">
-                    <ShieldCheck size={10} />
-                    <span>Compliance verified</span>
+        {messages.map((msg, idx) => {
+          const isLast = idx === messages.length - 1;
+          return (
+            <div key={idx} style={{ marginBottom: '12px' }}>
+              <div className={`chat-bubble-wrapper ${msg.role}`}>
+                {msg.role === 'ai' && <div className="sankalp-avatar-small" style={{ width: '26px', height: '26px', fontSize: '0.55rem' }}>S</div>}
+                <div>
+                  <div className={`chat-bubble ${msg.role}`}>
+                    {msg.text}
                   </div>
-                )}
-                {msg.role === 'ai' && msg.suggested_action && (
-                  <div className="suggested-action">💡 {msg.suggested_action}</div>
-                )}
-                {msg.role === 'ai' && msg.compliance_note && (
-                  <p className="compliance-note-inline">{msg.compliance_note}</p>
-                )}
+                  {msg.role === 'ai' && msg.complianceChecked && (
+                    <div className="compliance-badge" title="This response was checked against your risk profile and eligibility.">
+                      <ShieldCheck size={10} />
+                      <span>Compliance verified</span>
+                    </div>
+                  )}
+                  {msg.role === 'ai' && msg.suggested_action && (
+                    <div className="suggested-action">💡 {msg.suggested_action}</div>
+                  )}
+                  {msg.role === 'ai' && msg.compliance_note && (
+                    <p className="compliance-note-inline">{msg.compliance_note}</p>
+                  )}
+                </div>
               </div>
+              
+              {/* Inline Rich Widgets per AI message */}
+              {msg.role === 'ai' && (
+                <div style={{ padding: '4px 0 8px 34px', display: 'grid', gap: '8px', maxWidth: '85%' }}>
+                  {msg.wellnessScore && (
+                    <div style={{ border: '1px solid rgba(45, 212, 191, 0.25)', borderRadius: '14px', background: 'linear-gradient(135deg, rgba(45, 212, 191, 0.16), rgba(14, 165, 233, 0.12))', padding: '10px 12px' }}>
+                      <div style={{ fontSize: '0.74rem', color: 'var(--color-text-secondary)' }}>Financial Wellness Score</div>
+                      <div style={{ fontSize: '1.1rem', fontWeight: 800, marginTop: '2px' }}>{msg.wellnessScore.score}/100</div>
+                      <div style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)', marginTop: '2px' }}>{msg.wellnessScore.label}</div>
+                    </div>
+                  )}
+
+                  {msg.dashboardInsights && msg.dashboardInsights.length > 0 && (
+                    <div style={{ display: 'grid', gap: '6px', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))' }}>
+                      {msg.dashboardInsights.map((insight) => (
+                        <div key={insight.title} style={{ border: '1px solid rgba(45, 212, 191, 0.2)', borderRadius: '12px', background: 'rgba(255,255,255,0.05)', padding: '10px 12px' }}>
+                          <div style={{ fontSize: '0.66rem', color: 'var(--color-text-secondary)' }}>{insight.title}</div>
+                          <div style={{ fontSize: '0.8rem', fontWeight: 700, marginTop: '2px' }}>{insight.value}</div>
+                          <div style={{ fontSize: '0.62rem', color: 'var(--color-text-secondary)', marginTop: '2px' }}>{insight.hint}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {msg.nextBestActions && msg.nextBestActions.length > 0 && (
+                    <div style={{ display: 'grid', gap: '6px' }}>
+                      {msg.nextBestActions.map((action) => (
+                        <div key={action.title} style={{ border: '1px solid rgba(45, 212, 191, 0.2)', borderRadius: '12px', background: 'rgba(255,255,255,0.05)', padding: '10px 12px' }}>
+                          <div style={{ fontSize: '0.74rem', fontWeight: 700 }}>{action.title}</div>
+                          <div style={{ fontSize: '0.68rem', color: 'var(--color-text-secondary)', marginTop: '2px' }}>{action.detail}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {msg.riskAdjustedRecommendations && msg.riskAdjustedRecommendations.length > 0 && (
+                    <div style={{ display: 'grid', gap: '6px' }}>
+                      {msg.riskAdjustedRecommendations.map((rec) => (
+                        <div key={rec.title} style={{ border: '1px solid rgba(14, 165, 233, 0.2)', borderRadius: '12px', background: 'rgba(14, 165, 233, 0.08)', padding: '10px 12px' }}>
+                          <div style={{ fontSize: '0.74rem', fontWeight: 700 }}>{rec.title}</div>
+                          <div style={{ fontSize: '0.68rem', color: 'var(--color-text-secondary)', marginTop: '2px' }}>{rec.detail}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {msg.monthChangeAnalysis && msg.monthChangeAnalysis.length > 0 && (
+                    <div style={{ display: 'grid', gap: '6px' }}>
+                      {msg.monthChangeAnalysis.map((item) => (
+                        <div key={item.title} style={{ border: '1px solid rgba(251, 191, 36, 0.2)', borderRadius: '12px', background: 'rgba(251, 191, 36, 0.08)', padding: '10px 12px' }}>
+                          <div style={{ fontSize: '0.74rem', fontWeight: 700 }}>{item.title}</div>
+                          <div style={{ fontSize: '0.68rem', color: 'var(--color-text-secondary)', marginTop: '2px' }}>{item.detail}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {msg.goalAction && (
+                    <div style={{ border: '1px solid rgba(45, 212, 191, 0.25)', borderRadius: '12px', background: 'rgba(45, 212, 191, 0.12)', padding: '10px 12px' }}>
+                      <div style={{ fontSize: '0.74rem', fontWeight: 700 }}>
+                        {msg.goalAction.type === 'create' ? 'Goal Created' : msg.goalAction.type === 'delete' ? 'Goal Deleted' : 'Goal Updated'}
+                      </div>
+                      <div style={{ fontSize: '0.7rem', color: 'var(--color-text-secondary)', marginTop: '2px' }}>
+                        {msg.goalAction.goalName || 'Goal'}
+                        {msg.goalAction.targetAmount !== undefined && msg.goalAction.targetAmount !== null && ` • ₹${Number(msg.goalAction.targetAmount).toLocaleString('en-IN')}`}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Goal Conflict Interactive Resolver */}
+                  {msg.goalConflicts && msg.goalConflicts.hasConflict && (
+                    <div style={{ border: '1px solid rgba(239, 68, 68, 0.25)', borderRadius: '12px', background: 'rgba(239, 68, 68, 0.08)', padding: '10px 12px' }}>
+                      <div style={{ fontSize: '0.76rem', fontWeight: 700, color: 'var(--color-danger)' }}>⚠️ Goal Planning Conflict</div>
+                      <div style={{ fontSize: '0.68rem', color: 'var(--color-text-secondary)', marginTop: '4px', lineHeight: 1.4 }}>
+                        {msg.goalConflicts.conflicts[0]}
+                      </div>
+                      {isLast && (
+                        <div style={{ display: 'flex', gap: '6px', marginTop: '10px' }}>
+                          <button
+                            onClick={() => handleSend("Extend my goal target dates by 6 months")}
+                            style={{ flex: 1, padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, border: '1px solid var(--color-danger)', borderRadius: '8px', background: 'rgba(239, 68, 68, 0.1)', color: 'var(--color-danger)', cursor: 'pointer' }}
+                          >
+                            Extend Target Dates
+                          </button>
+                          <button
+                            onClick={() => handleSend("Connect to human relationship manager")}
+                            style={{ flex: 1, padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, border: '1px solid var(--color-text-secondary)', borderRadius: '8px', background: 'rgba(255, 255, 255, 0.05)', color: 'var(--color-text-primary)', cursor: 'pointer' }}
+                          >
+                            Talk to Advisor
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {msg.role === 'ai' && msg.action_buttons && msg.action_buttons.length > 0 && (
+                <div className="chat-action-buttons-container">
+                  {msg.action_buttons.map((btnText, btnIdx) => (
+                    <button
+                      key={btnIdx}
+                      className="chat-action-btn"
+                      onClick={() => handleSend(btnText)}
+                      disabled={isLoading || isStreaming || !isLast}
+                    >
+                      {btnText}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
-          </div>
-        ))}
+          );
+        })}
 
         {(onOpenGoals || onOpenPortfolio) && (
           <div style={{ padding: '0 0 8px', display: 'flex', gap: '8px' }}>

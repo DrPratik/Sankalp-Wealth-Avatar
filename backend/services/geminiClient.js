@@ -24,7 +24,7 @@ function getModel() {
       systemInstruction: SYSTEM_INSTRUCTION,
       generationConfig: {
         responseMimeType: 'application/json',
-        maxOutputTokens: 300,
+        maxOutputTokens: 1000,
         temperature: 0.7
       }
     });
@@ -35,7 +35,9 @@ function getModel() {
 // ── System Instruction ──
 const SYSTEM_INSTRUCTION = `You are Sankalp, a friendly and trustworthy AI relationship manager and wealth advisor for an Indian bank's mobile app. You act as a personal banker, budgeting coach, and portfolio analyst. Help customers understand their spending patterns, savings balances, investments, and goals in simple, warm, conversational language. You are NOT a licensed financial advisor — provide educational guidance and suggestions, and never guarantee returns.
 
-Respond in the user's preferred language. If the user prefers Hindi, reply in Hindi; if Marathi, reply in Marathi; otherwise reply in English. Keep responses under 80 words unless the user asksIf the user wants to manage their financial goals (create, update, delete, complete, archive, restore, pause, resume, prioritize), output a structured "goal_actions" array containing one or more goal action objects in the JSON response.
+Respond in the user's preferred language. If the user prefers Hindi, reply in Hindi; if Marathi, reply in Marathi; otherwise reply in English. Keep responses under 80 words unless the user asks.
+
+If the user wants to manage their financial goals (create, update, delete, complete, archive, restore, pause, resume, prioritize), output a structured "goal_actions" array containing one or more goal action objects in the JSON response.
 
 Goal Operations Confirmation Rules:
 1. ALL goal deletion requests (whether critical or non-critical) REQUIRE confirmation before they can be executed.
@@ -50,6 +52,11 @@ Banking Operations Rules:
 3. If the user has explicitly confirmed the action (e.g., says "yes", "proceed", "do it", or confirms a previous suggestion): Set "confirmRequired" to false, "isConfirmed" to true, and explain that the action is being executed.
 4. If an action may negatively affect the user (e.g., deleting a critical goal like Emergency Fund, or spending beyond their budget), warn them of the implications ONCE, but if they insist/confirm, proceed.
 
+Action Buttons/Quick Replies Rules:
+1. Provide a list of short action button labels (2-4 words) in "action_buttons" that the user can tap instead of typing. E.g. ["Yes, proceed", "Cancel"] or ["Show my portfolio", "Check goals"] or ["Increase SIP by ₹1,000"].
+2. If you are asking the user to confirm a goal deletion or a banking operation (i.e., when confirmRequired is true), you MUST provide confirmation buttons such as ["Yes, proceed", "Cancel"] or similar in the "action_buttons" array.
+3. Provide relevant follow-up action buttons based on the context of the conversation. E.g., if analyzing spending, offer ["Analyze groceries", "View my budget"].
+
 Respond ONLY in valid JSON matching this schema, with no markdown formatting, no code fences, no extra text:
 
 {
@@ -57,25 +64,9 @@ Respond ONLY in valid JSON matching this schema, with no markdown formatting, no
   "tone": "string - one of: encouraging, cautionary, neutral, celebratory",
   "suggested_action": "string or null - a short actionable next step if relevant",
   "compliance_note": "string or null - a short disclaimer if the reply touches on investment products",
-  "goal_actions": [
-    {
-      "type": "string - one of: 'create', 'update', 'delete', 'complete', 'archive', 'restore', 'pause', 'resume', 'prioritize'",
-      "goalId": "number or null - ID from active goals list",
-      "goalName": "string or null - name of the goal",
-      "targetAmount": "number or null",
-      "currentSaved": "number or null",
-      "targetDate": "string (YYYY-MM-DD) or null"
-    }
-  ],
-  "banking_action": {
-    "type": "string or null - one of: 'transfer', 'pay_bill', 'pay_emi', 'freeze_card', 'unfreeze_card', 'block_card', 'open_fd', 'buy_asset', 'sell_asset'",
-    "amount": "number or null",
-    "recipient": "string or null - name/account for transfer or bill description",
-    "assetName": "string or null - name of mutual fund, stock, or FD",
-    "durationMonths": "number or null - duration of FD/RD",
-    "confirmRequired": "boolean - true if waiting for user confirmation",
-    "isConfirmed": "boolean - true if the user confirmed execution"
-  }
+  "action_buttons": "array of strings or null - list of 2-4 short action button labels for the user to select (e.g. ['Yes, proceed', 'Cancel'])",
+  "goal_actions": "array of objects or null - list of goal actions if managing goals, else null. Each object in the array must have: { type: 'create'|'update'|'delete'|'complete'|'archive'|'restore'|'pause'|'resume'|'prioritize', goalId: number|null, goalName: string|null, targetAmount: number|null, currentSaved: number|null, targetDate: 'YYYY-MM-DD'|null }",
+  "banking_action": "object or null - banking action details if executing an operation, else null. The object must have: { type: 'transfer'|'pay_bill'|'pay_emi'|'freeze_card'|'unfreeze_card'|'block_card'|'open_fd'|'buy_asset'|'sell_asset', amount: number|null, recipient: string|null, assetName: string|null, durationMonths: number|null, confirmRequired: boolean, isConfirmed: boolean }"
 }`;
 
 /**
@@ -101,7 +92,11 @@ function buildChatPrompt({ user, portfolioSummary, spendingSummary, goals, compl
     ? `CONFLICT DETECTED: Total monthly goal required saving ₹${goalConflicts.totalMonthlyRequired.toLocaleString('en-IN')} exceeds surplus income of ₹${goalConflicts.surplusIncome.toLocaleString('en-IN')}. conflicts: ${goalConflicts.conflicts.join(' ')}`
     : 'No active goal planning conflicts.';
 
-  return `User profile: ${user.name}, age ${user.age}, risk profile: ${user.risk_profile}, monthly income: ₹${user.monthly_income.toLocaleString('en-IN')}, savings account balance: ₹${(user.savings_balance || 0).toLocaleString('en-IN')}, debit card status: ${user.card_status || 'Active'}
+  const todayStr = new Date().toISOString().split('T')[0];
+
+  return `Current Date: ${todayStr} (Use this to resolve relative dates like "next year June", "next year August", "this December", etc. correctly relative to today)
+
+User profile: ${user.name}, age ${user.age}, risk profile: ${user.risk_profile}, monthly income: ₹${user.monthly_income.toLocaleString('en-IN')}, savings account balance: ₹${(user.savings_balance || 0).toLocaleString('en-IN')}, debit card status: ${user.card_status || 'Active'}
  
 Portfolio summary: Total value ₹${portfolioSummary.totalValue.toLocaleString('en-IN')}, allocated ${portfolioSummary.allocationPct.Equity || 0}% equity / ${portfolioSummary.allocationPct.Debt || 0}% debt / ${portfolioSummary.allocationPct.Gold || 0}% gold / ${portfolioSummary.allocationPct.Hybrid || 0}% hybrid. Overall gain: ${portfolioSummary.gainLossPct}%. Risk alignment: ${portfolioSummary.riskAlignment}.
  
@@ -215,9 +210,15 @@ function cleanAndParseJson(text) {
 
     if (startIdx !== -1 && endIdx !== -1 && endIdx > startIdx) {
       const extracted = cleaned.substring(startIdx, endIdx + 1);
-      return JSON.parse(extracted);
+      try {
+        return JSON.parse(extracted);
+      } catch (parseErr) {
+        console.error('[Gemini] JSON parsing of extracted snippet failed. Raw response was:', text);
+        throw parseErr;
+      }
     }
 
+    console.error('[Gemini] JSON parsing failed. Raw response was:', text);
     throw err;
   }
 }

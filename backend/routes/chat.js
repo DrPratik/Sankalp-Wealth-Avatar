@@ -313,6 +313,7 @@ router.post('/chat', async (req, res) => {
       tone: processedReply.tone || 'neutral',
       suggested_action: processedReply.suggested_action || null,
       compliance_note: processedReply.compliance_note || null,
+      action_buttons: processedReply.action_buttons || null,
       complianceChecked: true,
       advisorCards,
       dashboardInsights,
@@ -325,7 +326,8 @@ router.post('/chat', async (req, res) => {
       portfolioUpdated,
       actionExecuted,
       goalAction: (processedReply.goal_actions && processedReply.goal_actions[0]) || null,
-      goals: refreshedGoals
+      goals: refreshedGoals,
+      goalConflicts
     });
 
   } catch (err) {
@@ -335,6 +337,7 @@ router.post('/chat', async (req, res) => {
       tone: 'neutral',
       suggested_action: null,
       compliance_note: null,
+      action_buttons: null,
       complianceChecked: false,
       advisorCards: [],
       goalsUpdated: false,

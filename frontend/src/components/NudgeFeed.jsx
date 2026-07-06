@@ -12,7 +12,7 @@ const TRIGGER_ICONS = {
   general: { icon: CreditCard, bg: '#F1F5F9', color: '#64748B' }
 };
 
-export default function NudgeFeed({ userId, refreshKey }) {
+export default function NudgeFeed({ userId, refreshKey, onNudgeClick }) {
   const [nudges, setNudges] = useState([]);
   const [loading, setLoading] = useState(true);
   const [dismissing, setDismissing] = useState(new Set());
@@ -111,7 +111,11 @@ export default function NudgeFeed({ userId, refreshKey }) {
                 {nudge.body}
               </p>
               {nudge.cta_label && (
-                <button className="nudge-cta" style={{ background: trigger.bg, color: trigger.color }}>
+                <button
+                  className="nudge-cta"
+                  style={{ background: trigger.bg, color: trigger.color, cursor: 'pointer' }}
+                  onClick={() => onNudgeClick && onNudgeClick(nudge)}
+                >
                   {nudge.cta_label}
                 </button>
               )}

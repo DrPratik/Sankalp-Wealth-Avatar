@@ -31,6 +31,7 @@ async function initDb() {
   const fileBuffer = fs.readFileSync(DB_PATH);
   db = new SQL.Database(fileBuffer);
   ensureSchema();
+  shiftDatesToToday();
   console.log('[DB] SQLite loaded from:', DB_PATH);
   
   // Clean shutdown persist
@@ -47,6 +48,47 @@ async function initDb() {
   });
 
   return getDbWrapper();
+}
+
+function shiftDatesToToday() {
+  try {
+    const stmt = db.prepare('SELECT MAX(date) as maxDate FROM transactions');
+    let latestTxn = null;
+    if (stmt.step()) {
+      latestTxn = stmt.getAsObject();
+    }
+    stmt.free();
+
+    if (!latestTxn || !latestTxn.maxDate) return;
+
+    const latestDate = new Date(latestTxn.maxDate);
+    const today = new Date();
+    
+    // Zero out time to get accurate calendar day difference
+    latestDate.setHours(0, 0, 0, 0);
+    today.setHours(0, 0, 0, 0);
+    
+    const diffTime = today - latestDate;
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    
+    if (diffDays > 0) {
+      console.log(`[DB] Shifting all dates forward by ${diffDays} days to match today's date...`);
+      
+      // Update transaction dates
+      db.run("UPDATE transactions SET date = date(date, '+' || ? || ' days')", [diffDays]);
+      
+      // Update goal dates
+      db.run("UPDATE goals SET target_date = date(target_date, '+' || ? || ' days') WHERE target_date IS NOT NULL AND target_date != ''", [diffDays]);
+
+      // Update nudge_log dates if any
+      db.run("UPDATE nudges_log SET created_at = datetime(created_at, '+' || ? || ' days') WHERE created_at IS NOT NULL", [diffDays]);
+      
+      isDirty = true;
+      persistToFile(true);
+    }
+  } catch (err) {
+    console.error('[DB] Failed to shift dates:', err.message);
+  }
 }
 
 function ensureSchema() {

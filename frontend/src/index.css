@@ -479,6 +479,52 @@ body {
   border-top: 1px solid var(--color-border-light);
 }
 
+/* ── Action Buttons per AI Message ── */
+.chat-action-buttons-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+  padding-left: 34px; /* Align with AI message bubble text (under the avatar spacer) */
+  animation: fadeInUp 0.3s ease-out;
+}
+
+.chat-action-btn {
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--color-accent-teal);
+  background: rgba(0, 180, 216, 0.05);
+  color: var(--color-primary-light);
+  font-size: 0.74rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: inherit;
+}
+
+.chat-action-btn:hover {
+  background: var(--color-accent-teal);
+  color: white;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(0, 180, 216, 0.2);
+}
+
+.chat-action-btn:active {
+  transform: translateY(0);
+}
+
+.chat-action-btn:disabled {
+  opacity: 0.5;
+  border-color: var(--color-border);
+  background: rgba(0, 0, 0, 0.02);
+  color: var(--color-text-secondary);
+  cursor: not-allowed;
+  pointer-events: none;
+  transform: none;
+  box-shadow: none;
+}
+
+
 .typing-indicator {
   display: flex;
   align-items: center;

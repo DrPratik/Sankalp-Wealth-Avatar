@@ -121,7 +121,7 @@ export default function PortfolioDashboard({ userId, nudgeRefreshKey, onOpenChat
       )}
 
       {/* Nudge Feed */}
-      <NudgeFeed userId={userId} refreshKey={nudgeRefreshKey} />
+      <NudgeFeed userId={userId} refreshKey={nudgeRefreshKey} onNudgeClick={onOpenChat} />
     </div>
   );
 }

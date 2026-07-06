@@ -1,28 +1,11 @@
 {
   "chat": {
-    "1": {
-      "reply": "Hi Rahul! I notice you have a solid foundation with your FDs and debt fund. Your portfolio is safe and steady, which matches your Conservative profile perfectly. I see your daughter's education goal is progressing — let's keep building on that momentum!",
-      "tone": "encouraging",
-      "suggested_action": "Consider reviewing your FD maturity dates to reinvest at current rates",
-      "compliance_note": "This is general guidance, not specific investment advice. Consult your bank advisor for personalized recommendations."
-    },
-    "2": {
-      "reply": "Hey Ananya! Your equity portfolio is performing really well with some great picks. I see your Goa Trip fund is almost at goal — exciting times ahead! Just a heads up, your dining spending has jumped a bit this month, but nothing alarming.",
-      "tone": "celebratory",
-      "suggested_action": "Your Goa Trip goal is 75% funded — keep it going!",
-      "compliance_note": "Mutual fund investments are subject to market risks. Read all scheme-related documents carefully."
-    },
-    "3": {
-      "reply": "Hello Suresh! Your portfolio is beautifully diversified across equity, debt, and gold — exactly what a Moderate profile should look like. Your SIPs are running smoothly and your spending patterns are very stable. You're on a great track for retirement!",
-      "tone": "encouraging",
-      "suggested_action": "Your retirement corpus is 36% funded — steady contributions will compound well",
-      "compliance_note": "Mutual fund investments are subject to market risks. Read all scheme-related documents carefully."
-    },
     "default": {
-      "reply": "I'm having a bit of trouble thinking right now — but based on your portfolio, everything looks steady. Try asking me again in a moment, and I'll give you a more detailed analysis!",
+      "reply": "Sankalp AI is temporarily unavailable. Please try again shortly, or select below to connect with a human relationship manager.",
       "tone": "neutral",
       "suggested_action": null,
-      "compliance_note": null
+      "compliance_note": null,
+      "action_buttons": ["Connect to Human Support", "Try again"]
     }
   },
   "nudges": {
