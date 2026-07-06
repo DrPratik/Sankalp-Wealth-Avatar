@@ -1,6 +1,6 @@
 # Sankalp — AI-Powered Digital Wealth Relationship Manager & Banking Assistant
 
-Sankalp is a production-quality, simulation-first banking prototype built for a Banking AI Wealth Advisory Hackathon. It features a hybrid intelligence system combining a **Rule & Analytics Engine** with a **Generative LLM (Gemini 3.1)** to act as a trusted personal banker, wealth advisor, and financial relationship manager.
+Sankalp is a production-quality, simulation-first banking prototype built for a Banking AI Wealth Advisory Hackathon. It features a hybrid intelligence system combining a **Rule & Analytics Engine** with a **Generative LLM (Gemini)** to act as a trusted personal banker, wealth advisor, and financial relationship manager.
 
 ---
 
@@ -8,7 +8,8 @@ Sankalp is a production-quality, simulation-first banking prototype built for a 
 
 ### 1. 🤖 Context-Aware Conversational Banking (NLP)
 * **Empathy & Tone Alignment**: Sankalp adjusts its conversational tone based on the user's profile and financial state (neutral/supportive/empathetic).
-* **Two-Step Transaction Confirmation**: For any critical transactions (e.g. transfers, card blocking), Sankalp summarizes the action and details, requests explicit confirmation, and only executes it when confirmed.
+* **Interactive Action Buttons & Chips**: Sankalp suggests context-aware options (like quick reply buttons) dynamically rendered under messages. Critical operations (transfers, FD setup, goal deletion) request confirmation and render `["Yes, proceed", "Cancel"]` buttons.
+* **Unified Default Fallback**: If LLM execution is interrupted, Sankalp returns a clean, uniform fallback offering support routing and interactive retries instead of failing silently.
 * **Language Support**: Fully responsive in English, Hindi, and Marathi based on user preferences.
 
 ### 2. 💳 Conversational Banking Operations
@@ -17,21 +18,16 @@ Sankalp is a production-quality, simulation-first banking prototype built for a 
 * **Debit Card Control**: Dynamically freezes, unfreezes, or blocks cards.
 * **Fixed Deposits (FD)**: Opens FDs, deducts initial amounts from savings, and creates entries in the portfolio.
 
-### 3. 🎯 Goals Management Lifecycle (Dual Sync UI + Chat)
+### 3. 🎯 Goals Management Lifecycle & Conflict Resolution (Dual Sync UI + Chat)
 * **Goal Operations**: Create, edit, delete, complete, and archive goals through both the natural language chat interface and the Settings/Goals UI.
 * **Status States**: Supports `Active`, `Paused`, `Completed`, and `Archived` goals.
 * **Auto-Balance Funding**: Adding funds to a goal automatically debits your savings balance and inserts a transaction log; reducing/deleting a goal refunds the money back to your account.
-* **Investment Strategies**: Save for goals using different strategies:
-  * Savings Account (Low Risk)
-  * Fixed Deposit (Stable Yield)
-  * Mutual Funds (Balanced Growth)
-  * Equity Shares (High Risk)
+* **Goal Conflict Resolver**: If active goal plans require more monthly savings than your monthly surplus income, Sankalp raises an interactive warning card inline with buttons to `[ Extend Target Dates ]` or `[ Talk to Advisor ]`.
 
-### 4. 📈 Intelligent Portfolio Analytics & Nudge Feed
-* **Risk Profile Alignment**: Evaluates asset allocations (Equity, Debt, Gold, Hybrid) against the user's risk profile (Conservative, Moderate, Aggressive) and recommends portfolio rebalancing.
-* **Personalized Nudge Feed**: Generates automated, compliance-safe notifications for triggers like missed SIPs, off-track goals, cash surplus idle days, and cross-selling.
-* **Cash Flow Forecasts & Planning Checks**: Identifies when active goal requirements exceed monthly surplus income, raising planning conflicts.
-* **Financial Wellness Score**: Dynamically calculates a wellness index from 1-100.
+### 4. 📈 Intelligent Portfolio Analytics & Proactive Nudges
+* **Context-Aware Inline Widgets**: Rather than static headers, premium cards (Wellness Score, Goal Progress, Drawdown recommendations, Asset Allocation charts) render inline directly under the AI chat bubble that discusses them, matching query context.
+* **Proactive Nudge Welcome**: On loading the chat, Sankalp scans for high-priority alerts (like missed SIPs or idle balance) and dynamically tailors its greeting to address the issue, offering direct action buttons (like `[ Review SIP ]`).
+* **Active Nudge Feed Integration**: Clicking the Action Button on any dashboard nudge immediately routes you to the chat screen and opens a personalized dialogue resolving that specific nudge.
 
 ---
 
@@ -52,6 +48,11 @@ Sankalp utilizes a **Simulation-First, API-Ready Architecture**, allowing the bu
                         ▼
                [ SQLite (sql.js Wasm) ]
 ```
+
+### Self-Healing Simulated Clock & Date Synchronizer
+To ensure that date validation checks (e.g. "target date must be in the future") and SIP triggers remain fully functional in a simulation environment, the backend implements:
+* **Dynamic Year Resolution**: Injects the current calendar date into the Gemini prompt context, allowing relative date inputs (like *"next year August"*) to resolve accurately (e.g., to August 2027 instead of past dates).
+* **Automatic Database Calendar Shift**: On server boot, the database checks the gap between the latest transaction date and today's date. It dynamically shifts all past transaction timestamps, goal targets, and log events forward to align with the current date, maintaining realistic simulation timelines.
 
 ### Backend (`/backend`)
 * **Node.js & Express.js**: Handles routing and API endpoints.
